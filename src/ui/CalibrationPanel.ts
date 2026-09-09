@@ -64,7 +64,7 @@ export class CalibrationPanel {
             <h3>Step 2 — Viewing Distance</h3>
             <p>Approximate distance between your eyes and the physical monitor screen:</p>
             <div class="input-row">
-              <label for="calib-dist-slider">Distance: <span id="calib-dist-val">${(data.viewingDistance * 100).toFixed(0)}</span> cm</label>
+              <label for="calib-dist-slider">Distance: <span id="calib-dist-val">${(data.viewingDistance * 100).toFixed(0)} cm (${(data.viewingDistance * 39.3701).toFixed(1)} in)</span></label>
               <input type="range" id="calib-dist-slider" min="30" max="120" step="1" value="${(data.viewingDistance * 100).toFixed(0)}" />
             </div>
           </section>
@@ -84,7 +84,7 @@ export class CalibrationPanel {
               </select>
             </div>
             <div class="screen-metric-readout">
-              Physical Window: ${(data.screenWidth * 100).toFixed(1)} cm × ${(data.screenHeight * 100).toFixed(1)} cm
+              Physical Window: ${(data.screenWidth * 100).toFixed(1)} cm × ${(data.screenHeight * 100).toFixed(1)} cm (${(data.screenWidth * 39.3701).toFixed(1)}" × ${(data.screenHeight * 39.3701).toFixed(1)}")
             </div>
           </section>
 
@@ -140,7 +140,8 @@ export class CalibrationPanel {
     const distVal = this.overlay.querySelector('#calib-dist-val');
     distSlider?.addEventListener('input', (e) => {
       const cm = parseFloat((e.target as HTMLInputElement).value);
-      if (distVal) distVal.textContent = cm.toFixed(0);
+      const inches = (cm / 2.54).toFixed(1);
+      if (distVal) distVal.textContent = `${cm.toFixed(0)} cm (${inches} in)`;
       this.manager.setViewingDistance(cm / 100);
     });
 
