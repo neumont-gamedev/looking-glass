@@ -11,6 +11,8 @@ export interface SensitivitySettings {
   z: number; // Multiplier for depth movement (default: 1.0)
 }
 
+export type DistanceCalibrationMode = 'wireframe' | 'biometric' | 'manual';
+
 export interface CalibrationData {
   /** Calibrated neutral head position in meters */
   neutralOrigin: {
@@ -25,6 +27,10 @@ export interface CalibrationData {
   screenDiagonalInches: number;
   /** Calibrated standard viewing distance in meters (default: 0.65m) */
   viewingDistance: number;
+  /** Active distance calibration method */
+  distanceMode: DistanceCalibrationMode;
+  /** Whether to continuously auto-track viewing depth via biometric estimation */
+  continuousDepthTracking: boolean;
   /** Motion sensitivity multipliers */
   sensitivity: SensitivitySettings;
   /** Whether calibration has been completed by the user */
@@ -43,6 +49,8 @@ export const DEFAULT_CALIBRATION_DATA: CalibrationData = {
   screenHeight: 0.299,
   screenDiagonalInches: 24,
   viewingDistance: 0.65,
+  distanceMode: 'wireframe',
+  continuousDepthTracking: false,
   sensitivity: {
     x: 1.0,
     y: 1.0,

@@ -5,7 +5,7 @@
  */
 
 import { Storage } from '../utils/Storage';
-import { CalibrationData, DEFAULT_CALIBRATION_DATA } from './CalibrationData';
+import { CalibrationData, DEFAULT_CALIBRATION_DATA, DistanceCalibrationMode } from './CalibrationData';
 import { ScreenGeometry } from '../math/ScreenGeometry';
 
 const STORAGE_KEY = 'looking_glass_calibration_v1';
@@ -38,6 +38,18 @@ export class CalibrationManager {
   public setViewingDistance(distanceMeters: number): void {
     this.data.viewingDistance = Math.max(0.2, distanceMeters);
     this.data.neutralOrigin.z = this.data.viewingDistance;
+    this.save();
+    this.notify();
+  }
+
+  public setDistanceMode(mode: DistanceCalibrationMode): void {
+    this.data.distanceMode = mode;
+    this.save();
+    this.notify();
+  }
+
+  public setContinuousDepthTracking(enabled: boolean): void {
+    this.data.continuousDepthTracking = enabled;
     this.save();
     this.notify();
   }

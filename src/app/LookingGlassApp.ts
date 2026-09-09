@@ -70,7 +70,19 @@ export class LookingGlassApp {
     this.statusPanel = new StatusPanel();
     this.calibrationPanel = new CalibrationPanel(
       this.calibrationManager,
-      () => this.currentRawPose
+      {
+        getCurrentRawPose: () => this.currentRawPose,
+        getBiometricDistance: () => {
+          if (!this.currentResult?.landmarks || this.currentResult.landmarks.length < 264) {
+            return null;
+          }
+          const screen = this.calibrationManager.getScreenGeometry();
+          return this.poseEstimator.estimateBiometricDistance(this.currentResult.landmarks, screen);
+        },
+        onWireframeModeToggle: (active: boolean) => {
+          this.sceneManager.wireframeCalibration.setVisible(active);
+        }
+      }
     );
     this.controls = new Controls(
       this.perspectiveController,
@@ -273,6 +285,14 @@ export class LookingGlassApp {
 
     // 2. Update active scene animations (aquarium boids, kelp, bubbles, or diorama)
     this.sceneManager.update(deltaTimeSeconds, timeSec);
+
+    // Update wireframe visual feedback if calibration mode is active
+    if (this.sceneManager.wireframeCalibration.getVisible()) {
+      const currentPose = this.perspectiveController.getCurrentPose();
+      const calibDist = this.calibrationManager.getData().viewingDistance;
+      const isAligned = Math.abs(currentPose.z - calibDist) < 0.06 && Math.abs(currentPose.x) < 0.06;
+      this.sceneManager.wireframeCalibration.setAlignmentStatus(isAligned);
+    }
 
     // 3. Render 3D Scene
     this.renderer.render(this.sceneManager.scene, this.perspectiveController.camera);

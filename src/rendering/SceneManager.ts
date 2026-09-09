@@ -10,11 +10,13 @@ import * as THREE from 'three';
 import { ScreenGeometry } from '../math/ScreenGeometry';
 import { DemoScene, SceneType } from './DemoScene';
 import { AquariumScene } from './aquarium/AquariumScene';
+import { WireframeCalibrationView } from './WireframeCalibrationView';
 
 export class SceneManager {
   public readonly scene: THREE.Scene;
   public readonly demoScene: DemoScene;
   public readonly aquariumScene: AquariumScene;
+  public readonly wireframeCalibration: WireframeCalibrationView;
 
   private currentSceneType: SceneType = SceneType.Aquarium;
   private dirLight: THREE.DirectionalLight;
@@ -52,6 +54,8 @@ export class SceneManager {
     // Instantiate scene contents
     this.demoScene = new DemoScene(screen);
     this.aquariumScene = new AquariumScene(screen);
+    this.wireframeCalibration = new WireframeCalibrationView(screen);
+    this.scene.add(this.wireframeCalibration.group);
 
     // Set default to Virtual Aquarium
     this.setSceneType(SceneType.Aquarium, screen);
@@ -64,6 +68,7 @@ export class SceneManager {
   public rebuild(screen: ScreenGeometry): void {
     this.demoScene.rebuild(screen);
     this.aquariumScene.rebuild(screen);
+    this.wireframeCalibration.rebuild(screen);
   }
 
   public setSceneType(type: SceneType, screen: ScreenGeometry): void {

@@ -22,7 +22,17 @@ const LANDMARK_LEFT_IRIS = 468;
 const LANDMARK_RIGHT_IRIS = 473;
 
 // Typical human interpupillary distance (IPD) in meters (~63mm)
-const AVERAGE_HUMAN_IPD_METERS = 0.063;
+export const AVERAGE_HUMAN_IPD_METERS = 0.063;
+// Typical human corneal iris horizontal diameter in meters (~11.7mm)
+export const AVERAGE_HUMAN_IRIS_DIAMETER_METERS = 0.0117;
+
+export interface BiometricDistanceResult {
+  distanceMeters: number;
+  confidence: number;
+  hasIris: boolean;
+  ipdMeters: number;
+  method: 'iris+ipd' | 'ipd' | 'fallback';
+}
 
 export class HeadPoseEstimator {
   private cameraHFOV: number = 60.0; // Standard webcam horizontal field of view in degrees
@@ -61,37 +71,73 @@ export class HeadPoseEstimator {
   }
 
   /**
-   * Estimates distance from the camera based on physical interpupillary distance (IPD).
+   * Estimates biometric distance combining iris diameter (if available) and IPD.
    */
-  public estimateDistanceMeters(landmarks: NormalizedLandmark[], screen: ScreenGeometry): number {
+  public estimateBiometricDistance(landmarks: NormalizedLandmark[], screen: ScreenGeometry): BiometricDistanceResult {
     if (!landmarks || landmarks.length < 264) {
-      return 0.65;
+      return { distanceMeters: 0.65, confidence: 0.2, hasIris: false, ipdMeters: AVERAGE_HUMAN_IPD_METERS, method: 'fallback' };
     }
 
-    // Interpupillary distance or outer eye corners in image space
+    const hFovRad = (this.cameraHFOV * Math.PI) / 180;
+    const tanHalfFov = Math.tan(hFovRad / 2);
+
+    // 1. IPD Estimation
     let leftEye = landmarks[LANDMARK_LEFT_EYE_INNER] ?? landmarks[LANDMARK_LEFT_EYE_OUTER];
     let rightEye = landmarks[LANDMARK_RIGHT_EYE_INNER] ?? landmarks[LANDMARK_RIGHT_EYE_OUTER];
+    let hasIris = false;
 
-    if (landmarks.length > 473 && landmarks[LANDMARK_LEFT_IRIS] && landmarks[LANDMARK_RIGHT_IRIS]) {
+    if (landmarks.length > 477 && landmarks[LANDMARK_LEFT_IRIS] && landmarks[LANDMARK_RIGHT_IRIS]) {
       leftEye = landmarks[LANDMARK_LEFT_IRIS];
       rightEye = landmarks[LANDMARK_RIGHT_IRIS];
+      hasIris = true;
     }
 
     const dx = rightEye.x - leftEye.x;
-    // Account for screen aspect ratio when converting normalized Y to X equivalent
     const dy = (rightEye.y - leftEye.y) / screen.aspectRatio;
     const eyeDistNorm = Math.sqrt(dx * dx + dy * dy);
 
     if (eyeDistNorm < 0.02) {
-      return 0.65; // Sanity fallback if too small or far
+      return { distanceMeters: 0.65, confidence: 0.3, hasIris: false, ipdMeters: AVERAGE_HUMAN_IPD_METERS, method: 'fallback' };
     }
 
-    const hFovRad = (this.cameraHFOV * Math.PI) / 180;
-    // Z = IPD / (2 * normDist * tan(HFOV / 2))
-    const estimatedZ = AVERAGE_HUMAN_IPD_METERS / (eyeDistNorm * 2 * Math.tan(hFovRad / 2));
+    const ipdDistance = AVERAGE_HUMAN_IPD_METERS / (eyeDistNorm * 2 * tanHalfFov);
 
-    // Clamp to realistic desktop viewing distance: [0.25m, 1.8m]
-    return Math.max(0.25, Math.min(1.8, estimatedZ));
+    // 2. Iris Diameter Estimation (if landmarks 468-477 exist)
+    if (hasIris && landmarks[469] && landmarks[471] && landmarks[474] && landmarks[476]) {
+      const leftIrisDiam = Math.hypot(landmarks[469].x - landmarks[471].x, (landmarks[469].y - landmarks[471].y) / screen.aspectRatio);
+      const rightIrisDiam = Math.hypot(landmarks[474].x - landmarks[476].x, (landmarks[474].y - landmarks[476].y) / screen.aspectRatio);
+      const avgIrisDiam = (leftIrisDiam + rightIrisDiam) / 2;
+
+      if (avgIrisDiam > 0.004) {
+        const irisDistance = AVERAGE_HUMAN_IRIS_DIAMETER_METERS / (avgIrisDiam * 2 * tanHalfFov);
+        // Weighted blend: 65% IPD, 35% Iris (IPD is less noisy, Iris calibrates individual head size)
+        const blended = ipdDistance * 0.65 + irisDistance * 0.35;
+        const clamped = Math.max(0.25, Math.min(1.8, blended));
+        return {
+          distanceMeters: clamped,
+          confidence: 0.95,
+          hasIris: true,
+          ipdMeters: AVERAGE_HUMAN_IPD_METERS,
+          method: 'iris+ipd'
+        };
+      }
+    }
+
+    const clamped = Math.max(0.25, Math.min(1.8, ipdDistance));
+    return {
+      distanceMeters: clamped,
+      confidence: 0.8,
+      hasIris: false,
+      ipdMeters: AVERAGE_HUMAN_IPD_METERS,
+      method: 'ipd'
+    };
+  }
+
+  /**
+   * Estimates distance from the camera based on physical interpupillary distance (IPD).
+   */
+  public estimateDistanceMeters(landmarks: NormalizedLandmark[], screen: ScreenGeometry): number {
+    return this.estimateBiometricDistance(landmarks, screen).distanceMeters;
   }
 
   /**
@@ -149,9 +195,17 @@ export class HeadPoseEstimator {
     // Apply calibration offset and sensitivities
     const calibratedX = (rawPos.x - calibration.neutralOrigin.x) * calibration.sensitivity.x;
     const calibratedY = (rawPos.y - calibration.neutralOrigin.y) * calibration.sensitivity.y;
-    // Depth is relative to calibrated viewing distance
-    const depthDelta = (rawPos.z - calibration.neutralOrigin.z) * calibration.sensitivity.z;
-    const calibratedZ = Math.max(0.2, calibration.viewingDistance + depthDelta);
+    // Depth calculation
+    let calibratedZ: number;
+    if (calibration.continuousDepthTracking) {
+      // Continuous biometric tracking relative to calibrated viewing distance
+      const biometricRatio = rawPos.z / Math.max(0.2, calibration.neutralOrigin.z);
+      calibratedZ = Math.max(0.2, calibration.viewingDistance * biometricRatio * calibration.sensitivity.z);
+    } else {
+      // Relative depth delta from neutral seating pose
+      const depthDelta = (rawPos.z - calibration.neutralOrigin.z) * calibration.sensitivity.z;
+      calibratedZ = Math.max(0.2, calibration.viewingDistance + depthDelta);
+    }
 
     const rotation = this.estimateHeadRotation(landmarks);
 
