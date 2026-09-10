@@ -57,7 +57,7 @@ export class PerspectiveController {
   constructor(screen: ScreenGeometry) {
     this.screen = screen;
     this.camera = new THREE.PerspectiveCamera(50, screen.aspectRatio, this.near, this.far);
-    this.filter = new VectorFilter({ minCutoff: 1.0, beta: 0.007, dCutoff: 1.0 });
+    this.filter = new VectorFilter({ minCutoff: 1.2, beta: 2.5, dCutoff: 1.0 });
 
     this.currentZ = 0.65;
     this.targetZ = 0.65;
@@ -126,8 +126,9 @@ export class PerspectiveController {
       }
     }
 
-    // Smooth frame-to-frame convergence
-    const followFactor = Math.min(1.0, deltaTimeSeconds * 20.0);
+    // Smooth frame-to-frame convergence using frame-rate independent exponential decay
+    const followSpeed = 32.0; // Responsive tracking convergence (rad/s)
+    const followFactor = 1.0 - Math.exp(-deltaTimeSeconds * followSpeed);
     this.currentX += (this.targetX - this.currentX) * followFactor;
     this.currentY += (this.targetY - this.currentY) * followFactor;
     this.currentZ += (this.targetZ - this.currentZ) * followFactor;

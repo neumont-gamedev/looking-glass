@@ -32,9 +32,9 @@ class LowPassFilter {
 }
 
 export interface OneEuroConfig {
-  /** Minimum cutoff frequency in Hz (smaller = more filtering at low speeds). Default: 1.0 */
+  /** Minimum cutoff frequency in Hz (smaller = more filtering at low speeds). Default: 1.2 */
   minCutoff: number;
-  /** Speed coefficient (higher = less lag during rapid movement). Default: 0.007 */
+  /** Speed coefficient in metric space (higher = less lag during rapid movement). Default: 2.5 */
   beta: number;
   /** Cutoff frequency for derivative calculation in Hz. Default: 1.0 */
   dCutoff: number;
@@ -50,8 +50,8 @@ export class OneEuroFilter {
   private lastTime: number | null = null;
 
   constructor(config: Partial<OneEuroConfig> = {}) {
-    this.minCutoff = config.minCutoff ?? 1.0;
-    this.beta = config.beta ?? 0.007;
+    this.minCutoff = config.minCutoff ?? 1.2;
+    this.beta = config.beta ?? 2.5;
     this.dCutoff = config.dCutoff ?? 1.0;
   }
 

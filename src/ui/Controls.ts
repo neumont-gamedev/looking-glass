@@ -163,13 +163,16 @@ export class Controls {
         <div class="setting-group">
           <h4>One Euro Filter Tuning</h4>
           <div class="slider-row">
-            <label>Min Cutoff (Hz): <span id="val-min-cutoff">1.0</span></label>
-            <input type="range" id="slider-min-cutoff" min="0.1" max="4.0" step="0.1" value="1.0" />
+            <label>Min Cutoff (Hz): <span id="val-min-cutoff">1.2</span></label>
+            <input type="range" id="slider-min-cutoff" min="0.2" max="4.0" step="0.1" value="1.2" />
           </div>
           <div class="slider-row">
-            <label>Beta (Lag/Speed): <span id="val-beta">0.007</span></label>
-            <input type="range" id="slider-beta" min="0.001" max="0.05" step="0.001" value="0.007" />
+            <label>Beta (Responsiveness): <span id="val-beta">2.5</span></label>
+            <input type="range" id="slider-beta" min="0.2" max="8.0" step="0.1" value="2.5" />
           </div>
+          <small style="color: var(--text-secondary); font-size: 0.72rem; line-height: 1.3; display: block; margin-top: 4px;">
+            Higher Beta eliminates motion lag during head movement. Min Cutoff stabilizes stationary jitter.
+          </small>
         </div>
 
         <!-- Tracking Direction -->
@@ -236,7 +239,7 @@ export class Controls {
     const betaVal = this.settingsDrawer.querySelector('#val-beta');
     betaSlider?.addEventListener('input', (e) => {
       const val = parseFloat((e.target as HTMLInputElement).value);
-      if (betaVal) betaVal.textContent = val.toFixed(3);
+      if (betaVal) betaVal.textContent = val.toFixed(1);
       this.perspectiveController.filter.updateConfig({ beta: val });
     });
 

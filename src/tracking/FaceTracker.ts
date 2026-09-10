@@ -62,9 +62,9 @@ export class FaceTracker {
         },
         runningMode: 'VIDEO',
         numFaces: 1,
-        minFaceDetectionConfidence: 0.5,
-        minFacePresenceConfidence: 0.5,
-        minTrackingConfidence: 0.5,
+        minFaceDetectionConfidence: 0.4,
+        minFacePresenceConfidence: 0.4,
+        minTrackingConfidence: 0.4,
         outputFaceBlendshapes: false,
         outputFacialTransformationMatrixes: false
       });
@@ -74,7 +74,7 @@ export class FaceTracker {
 
       this.isRunning = true;
       this.updateStatus(TrackingStatus.Active, 'Tracking active');
-      this.processLoop();
+      this.startProcessingLoop();
     } catch (err: unknown) {
       const error = err as Error;
       console.error('[FaceTracker] Initialization failed:', error);
@@ -96,7 +96,7 @@ export class FaceTracker {
       video: {
         width: { ideal: 640 },
         height: { ideal: 480 },
-        frameRate: { ideal: 30 }
+        frameRate: { ideal: 30, max: 60 }
       },
       audio: false
     });
@@ -109,44 +109,70 @@ export class FaceTracker {
     });
   }
 
-  private processLoop = (): void => {
+  private isProcessing: boolean = false;
+  private rVfcHandle: number | null = null;
+
+  private startProcessingLoop(): void {
+    if ('requestVideoFrameCallback' in this.video) {
+      this.rVfcHandle = (this.video as any).requestVideoFrameCallback(this.onVideoFrame);
+    } else {
+      const loop = () => {
+        if (!this.isRunning) return;
+        if (this.video.readyState >= 2 && this.video.currentTime !== this.lastVideoTime) {
+          this.lastVideoTime = this.video.currentTime;
+          this.processCurrentFrame();
+        }
+        this.animationFrameId = requestAnimationFrame(loop);
+      };
+      this.animationFrameId = requestAnimationFrame(loop);
+    }
+  }
+
+  private onVideoFrame = (): void => {
     if (!this.isRunning) return;
 
-    const nowInMs = performance.now();
+    this.processCurrentFrame();
 
-    if (this.video.readyState >= 2 && this.video.currentTime !== this.lastVideoTime && this.faceLandmarker) {
-      this.lastVideoTime = this.video.currentTime;
-
-      try {
-        const results = this.faceLandmarker.detectForVideo(this.video, nowInMs);
-
-        if (results && results.faceLandmarks && results.faceLandmarks.length > 0) {
-          const landmarks = results.faceLandmarks[0];
-          if (this.onResultCallback) {
-            this.onResultCallback({
-              visible: true,
-              confidence: 1.0,
-              timestamp: nowInMs / 1000,
-              landmarks
-            });
-          }
-        } else {
-          if (this.onResultCallback) {
-            this.onResultCallback({
-              visible: false,
-              confidence: 0.0,
-              timestamp: nowInMs / 1000,
-              landmarks: []
-            });
-          }
-        }
-      } catch (e) {
-        console.warn('[FaceTracker] Detection frame error:', e);
-      }
+    if (this.isRunning && 'requestVideoFrameCallback' in this.video) {
+      this.rVfcHandle = (this.video as any).requestVideoFrameCallback(this.onVideoFrame);
     }
-
-    this.animationFrameId = requestAnimationFrame(this.processLoop);
   };
+
+  private processCurrentFrame(): void {
+    if (this.isProcessing || !this.faceLandmarker || this.video.readyState < 2) return;
+
+    const nowInMs = performance.now();
+    this.isProcessing = true;
+
+    try {
+      const results = this.faceLandmarker.detectForVideo(this.video, nowInMs);
+
+      if (results && results.faceLandmarks && results.faceLandmarks.length > 0) {
+        const landmarks = results.faceLandmarks[0];
+        if (this.onResultCallback) {
+          this.onResultCallback({
+            visible: true,
+            confidence: 1.0,
+            timestamp: nowInMs / 1000,
+            landmarks
+          });
+        }
+      } else {
+        if (this.onResultCallback) {
+          this.onResultCallback({
+            visible: false,
+            confidence: 0.0,
+            timestamp: nowInMs / 1000,
+            landmarks: []
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('[FaceTracker] Detection frame error:', e);
+    } finally {
+      this.isProcessing = false;
+    }
+  }
 
   private updateStatus(status: TrackingStatus, message?: string): void {
     if (this.onStatusCallback) {
@@ -156,6 +182,10 @@ export class FaceTracker {
 
   public stop(): void {
     this.isRunning = false;
+    if (this.rVfcHandle !== null && 'cancelVideoFrameCallback' in this.video) {
+      (this.video as any).cancelVideoFrameCallback(this.rVfcHandle);
+      this.rVfcHandle = null;
+    }
     if (this.animationFrameId !== null) {
       cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
