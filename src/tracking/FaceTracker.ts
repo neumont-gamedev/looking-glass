@@ -128,20 +128,20 @@ export class FaceTracker {
     }
   }
 
-  private onVideoFrame = (): void => {
+  private onVideoFrame = (now: DOMHighResTimeStamp, _metadata?: any): void => {
     if (!this.isRunning) return;
 
-    this.processCurrentFrame();
+    this.processCurrentFrame(now);
 
     if (this.isRunning && 'requestVideoFrameCallback' in this.video) {
       this.rVfcHandle = (this.video as any).requestVideoFrameCallback(this.onVideoFrame);
     }
   };
 
-  private processCurrentFrame(): void {
+  private processCurrentFrame(frameNow?: number): void {
     if (this.isProcessing || !this.faceLandmarker || this.video.readyState < 2) return;
 
-    const nowInMs = performance.now();
+    const nowInMs = frameNow ?? performance.now();
     this.isProcessing = true;
 
     try {

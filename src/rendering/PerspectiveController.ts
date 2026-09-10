@@ -14,6 +14,7 @@ import { ScreenGeometry } from '../math/ScreenGeometry';
 import { ProjectionMath } from '../math/ProjectionMath';
 import { ViewerPose } from '../tracking/TrackingState';
 import { VectorFilter } from '../filtering/VectorFilter';
+import { KinematicPredictor } from '../filtering/KinematicPredictor';
 
 export enum ProjectionMode {
   Accurate = 'Accurate',
@@ -31,11 +32,6 @@ export class PerspectiveController {
   private currentX: number = 0;
   private currentY: number = 0;
   private currentZ: number = 0.65;
-
-  // Target pose from tracking or fallback
-  private targetX: number = 0;
-  private targetY: number = 0;
-  private targetZ: number = 0.65;
 
   // Face lost handling
   private isFaceLost: boolean = false;
@@ -55,14 +51,28 @@ export class PerspectiveController {
 
   // Smoothing filter for raw tracking updates
   public readonly filter: VectorFilter;
+  // Physics-based kinematic motion predictor & inter-frame interpolator
+  public readonly predictor: KinematicPredictor;
 
   constructor(screen: ScreenGeometry) {
     this.screen = screen;
     this.camera = new THREE.PerspectiveCamera(50, screen.aspectRatio, this.near, this.far);
-    this.filter = new VectorFilter({ minCutoff: 1.2, beta: 2.5, dCutoff: 1.0 });
+    this.filter = new VectorFilter({
+      minCutoff: 1.0,
+      beta: 2.2,
+      dCutoff: 1.0,
+      zMinCutoff: 0.5,
+      zBeta: 1.2
+    });
+    this.predictor = new KinematicPredictor({
+      lookaheadSeconds: 0.035,
+      smoothTime: 0.055,
+      deadbandThreshold: 0.006,
+      enableDeadband: true
+    });
 
     this.currentZ = 0.65;
-    this.targetZ = 0.65;
+    this.predictor.reset({ x: 0, y: 0, z: 0.65 });
     this.applyCurrentProjection();
   }
 
@@ -94,6 +104,30 @@ export class PerspectiveController {
     this.applyCurrentProjection();
   }
 
+  public setLookaheadMs(ms: number): void {
+    this.predictor.config.lookaheadSeconds = Math.max(0, ms / 1000);
+  }
+
+  public getLookaheadMs(): number {
+    return Math.round(this.predictor.config.lookaheadSeconds * 1000);
+  }
+
+  public setSmoothTimeMs(ms: number): void {
+    this.predictor.config.smoothTime = Math.max(0.005, ms / 1000);
+  }
+
+  public getSmoothTimeMs(): number {
+    return Math.round(this.predictor.config.smoothTime * 1000);
+  }
+
+  public setDeadbandEnabled(enabled: boolean): void {
+    this.predictor.config.enableDeadband = enabled;
+  }
+
+  public isDeadbandEnabled(): boolean {
+    return this.predictor.config.enableDeadband;
+  }
+
   /**
    * Updates target pose from real-time tracking.
    */
@@ -101,13 +135,23 @@ export class PerspectiveController {
     if (isTrackingValid) {
       this.isFaceLost = false;
 
-      // Filter raw input
-      const filtered = this.filter.filter({ x: pose.x, y: pose.y, z: pose.z }, timestampSeconds);
+      // Filter raw input and extract filtered 3D velocity
+      const filteredState = this.filter.filterWithVelocity(
+        { x: pose.x, y: pose.y, z: pose.z },
+        timestampSeconds
+      );
 
       // Clamp within safe limits
-      this.targetX = Math.max(-this.MAX_X_OFFSET, Math.min(this.MAX_X_OFFSET, filtered.x));
-      this.targetY = Math.max(-this.MAX_Y_OFFSET, Math.min(this.MAX_Y_OFFSET, filtered.y));
-      this.targetZ = Math.max(this.MIN_Z, Math.min(this.MAX_Z, filtered.z));
+      const clampedX = Math.max(-this.MAX_X_OFFSET, Math.min(this.MAX_X_OFFSET, filteredState.position.x));
+      const clampedY = Math.max(-this.MAX_Y_OFFSET, Math.min(this.MAX_Y_OFFSET, filteredState.position.y));
+      const clampedZ = Math.max(this.MIN_Z, Math.min(this.MAX_Z, filteredState.position.z));
+
+      // Feed position and velocity into kinematic dead reckoning predictor
+      this.predictor.updateSample(
+        { x: clampedX, y: clampedY, z: clampedZ },
+        filteredState.velocity,
+        timestampSeconds
+      );
     } else {
       if (!this.isFaceLost) {
         this.isFaceLost = true;
@@ -121,9 +165,10 @@ export class PerspectiveController {
    */
   public setSimulatedTarget(x: number, y: number, z: number): void {
     this.isFaceLost = false;
-    this.targetX = Math.max(-this.MAX_X_OFFSET, Math.min(this.MAX_X_OFFSET, x));
-    this.targetY = Math.max(-this.MAX_Y_OFFSET, Math.min(this.MAX_Y_OFFSET, y));
-    this.targetZ = Math.max(this.MIN_Z, Math.min(this.MAX_Z, z));
+    const clampedX = Math.max(-this.MAX_X_OFFSET, Math.min(this.MAX_X_OFFSET, x));
+    const clampedY = Math.max(-this.MAX_Y_OFFSET, Math.min(this.MAX_Y_OFFSET, y));
+    const clampedZ = Math.max(this.MIN_Z, Math.min(this.MAX_Z, z));
+    this.predictor.setTargetDirect({ x: clampedX, y: clampedY, z: clampedZ });
   }
 
   /**
@@ -136,18 +181,19 @@ export class PerspectiveController {
         // Slowly interpolate back to neutral center (0, 0, defaultDistance)
         const neutralZ = 0.65;
         const lerpFactor = Math.min(1.0, deltaTimeSeconds * (1.0 / this.RETURN_SPEED_SEC));
-        this.targetX += (0 - this.targetX) * lerpFactor;
-        this.targetY += (0 - this.targetY) * lerpFactor;
-        this.targetZ += (neutralZ - this.targetZ) * lerpFactor;
+        const currentTarget = this.predictor.getCurrentPosition();
+        const returnX = currentTarget.x + (0 - currentTarget.x) * lerpFactor;
+        const returnY = currentTarget.y + (0 - currentTarget.y) * lerpFactor;
+        const returnZ = currentTarget.z + (neutralZ - currentTarget.z) * lerpFactor;
+        this.predictor.setTargetDirect({ x: returnX, y: returnY, z: returnZ });
       }
     }
 
-    // Smooth frame-to-frame convergence using frame-rate independent exponential decay
-    const followSpeed = 32.0; // Responsive tracking convergence (rad/s)
-    const followFactor = 1.0 - Math.exp(-deltaTimeSeconds * followSpeed);
-    this.currentX += (this.targetX - this.currentX) * followFactor;
-    this.currentY += (this.targetY - this.currentY) * followFactor;
-    this.currentZ += (this.targetZ - this.currentZ) * followFactor;
+    // Advance kinematic predictor using critically damped harmonic oscillation (SmoothDamp)
+    const smoothPos = this.predictor.step(deltaTimeSeconds, currentTimestampSeconds);
+    this.currentX = smoothPos.x;
+    this.currentY = smoothPos.y;
+    this.currentZ = smoothPos.z;
 
     this.applyCurrentProjection();
   }

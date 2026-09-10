@@ -86,6 +86,22 @@ export class OneEuroFilter {
     return this.xFilter.filter(x, this.alpha(rate, cutoff));
   }
 
+  /**
+   * Filters raw scalar and returns both filtered position and filtered velocity.
+   */
+  public filterWithVelocity(x: number, timestamp: number): { value: number; velocity: number } {
+    const value = this.filter(x, timestamp);
+    const velocity = this.getVelocity();
+    return { value, velocity };
+  }
+
+  /**
+   * Returns the current estimated filtered velocity (units per second).
+   */
+  public getVelocity(): number {
+    return this.dxFilter.last() ?? 0;
+  }
+
   public reset(): void {
     this.xFilter.reset();
     this.dxFilter.reset();

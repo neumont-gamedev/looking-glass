@@ -168,16 +168,36 @@ export class Controls {
           </p>
         </div>
 
+        <!-- Predictive Positioning & Kinematic Smoothing -->
+        <div class="setting-group">
+          <h4>Motion Smoothing & Predictive Tracking</h4>
+          <div class="slider-row">
+            <label>Predictive Lookahead: <span id="val-lookahead">${this.perspectiveController.getLookaheadMs()}</span> ms</label>
+            <input type="range" id="slider-lookahead" min="0" max="80" step="5" value="${this.perspectiveController.getLookaheadMs()}" />
+          </div>
+          <div class="slider-row">
+            <label>Translation Smoothing: <span id="val-smooth-time">${this.perspectiveController.getSmoothTimeMs()}</span> ms</label>
+            <input type="range" id="slider-smooth-time" min="15" max="120" step="5" value="${this.perspectiveController.getSmoothTimeMs()}" />
+          </div>
+          <label class="checkbox-row" style="margin-top: 8px;">
+            <input type="checkbox" id="toggle-deadband" ${this.perspectiveController.isDeadbandEnabled() ? 'checked' : ''} />
+            <span>Stationary Anti-Jitter Lock (Freezes tremor when still)</span>
+          </label>
+          <small style="color: var(--text-secondary); font-size: 0.72rem; line-height: 1.3; display: block; margin-top: 6px;">
+            Lookahead compensates for camera/model latency. Smoothing uses a critically damped harmonic oscillator to eliminate 30Hz inter-frame stutter.
+          </small>
+        </div>
+
         <!-- Smoothing Filter -->
         <div class="setting-group">
           <h4>One Euro Filter Tuning</h4>
           <div class="slider-row">
-            <label>Min Cutoff (Hz): <span id="val-min-cutoff">1.2</span></label>
-            <input type="range" id="slider-min-cutoff" min="0.2" max="4.0" step="0.1" value="1.2" />
+            <label>Min Cutoff (Hz): <span id="val-min-cutoff">1.0</span></label>
+            <input type="range" id="slider-min-cutoff" min="0.2" max="4.0" step="0.1" value="1.0" />
           </div>
           <div class="slider-row">
-            <label>Beta (Responsiveness): <span id="val-beta">2.5</span></label>
-            <input type="range" id="slider-beta" min="0.2" max="8.0" step="0.1" value="2.5" />
+            <label>Beta (Responsiveness): <span id="val-beta">2.2</span></label>
+            <input type="range" id="slider-beta" min="0.2" max="8.0" step="0.1" value="2.2" />
           </div>
           <small style="color: var(--text-secondary); font-size: 0.72rem; line-height: 1.3; display: block; margin-top: 4px;">
             Higher Beta eliminates motion lag during head movement. Min Cutoff stabilizes stationary jitter.
@@ -240,6 +260,30 @@ export class Controls {
     sceneSelect?.addEventListener('change', (e) => {
       const type = (e.target as HTMLSelectElement).value as SceneType;
       this.callbacks.onSceneChange(type);
+    });
+
+    // Predictive Lookahead slider
+    const lookaheadSlider = this.settingsDrawer.querySelector('#slider-lookahead') as HTMLInputElement;
+    const lookaheadVal = this.settingsDrawer.querySelector('#val-lookahead');
+    lookaheadSlider?.addEventListener('input', (e) => {
+      const val = parseInt((e.target as HTMLInputElement).value, 10);
+      if (lookaheadVal) lookaheadVal.textContent = String(val);
+      this.perspectiveController.setLookaheadMs(val);
+    });
+
+    // Translation Smoothing Time (SmoothDamp) slider
+    const smoothTimeSlider = this.settingsDrawer.querySelector('#slider-smooth-time') as HTMLInputElement;
+    const smoothTimeVal = this.settingsDrawer.querySelector('#val-smooth-time');
+    smoothTimeSlider?.addEventListener('input', (e) => {
+      const val = parseInt((e.target as HTMLInputElement).value, 10);
+      if (smoothTimeVal) smoothTimeVal.textContent = String(val);
+      this.perspectiveController.setSmoothTimeMs(val);
+    });
+
+    // Stationary Anti-Jitter Deadband toggle
+    const deadbandToggle = this.settingsDrawer.querySelector('#toggle-deadband') as HTMLInputElement;
+    deadbandToggle?.addEventListener('change', (e) => {
+      this.perspectiveController.setDeadbandEnabled((e.target as HTMLInputElement).checked);
     });
 
     // Filter tuning sliders
