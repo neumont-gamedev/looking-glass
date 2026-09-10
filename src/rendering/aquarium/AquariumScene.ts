@@ -362,10 +362,42 @@ export class AquariumScene {
       spawn(FishSpecies.BlueTang, 1.15, 0.16, 0.4);
     }
 
-    // 3. Yellow Tangs (4 fish)
-    for (let i = 0; i < 4; i++) {
-      spawn(FishSpecies.YellowTang, 1.1, 0.15, 0.38);
-    }
+    // 3. Custom 3D Fish (models/fish01.glb - 4 fish)
+    this.customModelLoader
+      .loadGLTF('/models/fish01.glb')
+      .then((template) => {
+        for (let i = 0; i < 4; i++) {
+          const instantiated = this.customModelLoader.instantiateFish(template, {
+            targetLength: 0.055, // ~5.5cm length
+            forwardAxis: '-X' // fish01.glb head points along -X
+          });
+          const pos = new THREE.Vector3(
+            (Math.random() - 0.5) * (W * 0.75),
+            (Math.random() - 0.5) * (H * 0.65),
+            -0.18 - Math.random() * (D * 0.65)
+          );
+          const fish = new Fish(
+            {
+              species: FishSpecies.Custom,
+              scale: 1.0,
+              maxSpeed: 0.15,
+              maxForce: 0.38,
+              customModelRoot: instantiated.root,
+              animationMixer: instantiated.mixer,
+              forwardVector: instantiated.forwardVector
+            },
+            pos
+          );
+          this.boids.addFish(fish);
+          this.group.add(fish.group);
+        }
+      })
+      .catch((err) => {
+        console.warn('[AquariumScene] fish01.glb load fallback:', err);
+        for (let i = 0; i < 4; i++) {
+          spawn(FishSpecies.YellowTang, 1.1, 0.15, 0.38);
+        }
+      });
 
     // 4. Large School of Neon Tetras (14 fish)
     for (let i = 0; i < 14; i++) {

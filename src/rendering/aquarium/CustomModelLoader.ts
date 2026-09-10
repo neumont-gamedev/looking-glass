@@ -99,11 +99,19 @@ export class CustomModelLoader {
     const wrapperGroup = new THREE.Group();
     wrapperGroup.add(clonedScene);
 
-    // Enable shadows on all child meshes
+    // Enable shadows and two-sided rendering on all child meshes
     clonedScene.traverse((child) => {
       if ((child as THREE.Mesh).isMesh) {
-        child.castShadow = true;
-        child.receiveShadow = true;
+        const mesh = child as THREE.Mesh;
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        if (mesh.material) {
+          if (Array.isArray(mesh.material)) {
+            mesh.material.forEach((m) => (m.side = THREE.DoubleSide));
+          } else {
+            mesh.material.side = THREE.DoubleSide;
+          }
+        }
       }
     });
 
@@ -189,3 +197,4 @@ export class CustomModelLoader {
     return wrapperGroup;
   }
 }
+

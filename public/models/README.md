@@ -22,3 +22,4 @@ Place your custom 3D model files (`.glb` or `.gltf`) in this directory.
 
 2. **Option B — Instant In-Browser File Picker**:
    * In the app's Settings drawer under **Custom 3D Models**, click **"Import .glb File"** and choose any `.glb` file directly from your computer without restarting Vite!
+
