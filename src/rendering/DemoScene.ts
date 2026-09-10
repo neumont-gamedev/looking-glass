@@ -56,6 +56,18 @@ export class DemoScene {
       if ((child as THREE.Mesh).geometry) {
         (child as THREE.Mesh).geometry.dispose();
       }
+      const mat = (child as any).material;
+      if (mat) {
+        if (Array.isArray(mat)) {
+          mat.forEach((m) => {
+            if (m.map) m.map.dispose();
+            m.dispose();
+          });
+        } else {
+          if (mat.map) mat.map.dispose();
+          mat.dispose();
+        }
+      }
     }
     this.animatedMeshes = [];
     this.particles = null;
@@ -329,7 +341,94 @@ export class DemoScene {
       });
       const ribLine = new THREE.LineLoop(ribGeo, ribMat);
       this.group.add(ribLine);
+
+      // Text labels showing Z value in cm and inches on the colored major grid lines
+      const cm = Math.round(d * 100);
+      const inches = (d * 39.3701).toFixed(1);
+      const labelText = `Z: -${cm} cm (${inches} in)`;
+
+      // 1. Center label hovering just above the metric depth sphere
+      const centerLabel = this.createLabelSprite(labelText, colors[idx]);
+      centerLabel.position.set(0, 0.048, -d);
+      this.group.add(centerLabel);
+
+      // 2. Left label along the major colored floor grid line
+      const leftLabel = this.createLabelSprite(labelText, colors[idx]);
+      leftLabel.position.set(-W * 0.32, -H / 2 + 0.022, -d);
+      this.group.add(leftLabel);
+
+      // 3. Right label along the major colored floor grid line
+      const rightLabel = this.createLabelSprite(labelText, colors[idx]);
+      rightLabel.position.set(W * 0.32, -H / 2 + 0.022, -d);
+      this.group.add(rightLabel);
     });
+  }
+
+  /**
+   * Creates a billboard text sprite displaying metric and imperial units in the line's accent color.
+   */
+  private createLabelSprite(text: string, colorHex: number): THREE.Sprite {
+    const canvas = document.createElement('canvas');
+    canvas.width = 640;
+    canvas.height = 160;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return new THREE.Sprite();
+
+    const hexStr = '#' + colorHex.toString(16).padStart(6, '0');
+
+    // Background rounded pill
+    const x = 14;
+    const y = 14;
+    const w = canvas.width - 28;
+    const h = canvas.height - 28;
+    const r = 26;
+
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+
+    ctx.fillStyle = 'rgba(10, 15, 24, 0.88)';
+    ctx.fill();
+    ctx.strokeStyle = hexStr;
+    ctx.lineWidth = 6;
+    ctx.stroke();
+
+    // Render Text with glow
+    let fontSize = 52;
+    ctx.font = `bold ${fontSize}px "SF Mono", "Consolas", "Courier New", monospace`;
+    while (ctx.measureText(text).width > w - 48 && fontSize > 20) {
+      fontSize -= 2;
+      ctx.font = `bold ${fontSize}px "SF Mono", "Consolas", "Courier New", monospace`;
+    }
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = hexStr;
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = hexStr;
+    ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+
+    const spriteMat = new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthTest: true
+    });
+    const sprite = new THREE.Sprite(spriteMat);
+    // Real-world scale: 12cm wide by 3cm tall
+    sprite.scale.set(0.12, 0.03, 1.0);
+    return sprite;
   }
 
   public update(timeSeconds: number): void {
