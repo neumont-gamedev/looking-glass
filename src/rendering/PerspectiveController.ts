@@ -24,6 +24,8 @@ export class PerspectiveController {
   public readonly camera: THREE.PerspectiveCamera;
   private screen: ScreenGeometry;
   private projectionMode: ProjectionMode = ProjectionMode.Accurate;
+  private depthMode: 'natural' | 'aperture' = 'natural';
+  private referenceDistance: number = 0.65;
 
   // Current interpolated camera pose in world space (meters)
   private currentX: number = 0;
@@ -75,6 +77,20 @@ export class PerspectiveController {
 
   public setScreenGeometry(screen: ScreenGeometry): void {
     this.screen = screen;
+    this.applyCurrentProjection();
+  }
+
+  public setDepthMode(mode: 'natural' | 'aperture'): void {
+    this.depthMode = mode;
+    this.applyCurrentProjection();
+  }
+
+  public getDepthMode(): 'natural' | 'aperture' {
+    return this.depthMode;
+  }
+
+  public setReferenceDistance(dist: number): void {
+    this.referenceDistance = Math.max(0.2, dist);
     this.applyCurrentProjection();
   }
 
@@ -149,7 +165,9 @@ export class PerspectiveController {
         this.currentZ,
         this.screen,
         this.near,
-        this.far
+        this.far,
+        this.referenceDistance,
+        this.depthMode
       );
     } else {
       ProjectionMath.applySimplePerspective(

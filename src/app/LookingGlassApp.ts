@@ -59,6 +59,7 @@ export class LookingGlassApp {
     this.renderer = new Renderer(this.canvas);
     this.sceneManager = new SceneManager(screenGeometry);
     this.perspectiveController = new PerspectiveController(screenGeometry);
+    this.perspectiveController.setReferenceDistance(this.calibrationManager.getData().viewingDistance);
 
     // 3. Initialize Tracking Subsystems
     this.faceTracker = new FaceTracker();
@@ -104,7 +105,9 @@ export class LookingGlassApp {
     // Calibration updates
     this.calibrationManager.subscribe(() => {
       const geom = this.calibrationManager.getScreenGeometry();
+      const calib = this.calibrationManager.getData();
       this.perspectiveController.setScreenGeometry(geom);
+      this.perspectiveController.setReferenceDistance(calib.viewingDistance);
       this.sceneManager.rebuild(geom);
     });
 

@@ -53,7 +53,9 @@ export class ProjectionMath {
     eyeZ: number,
     screen: ScreenGeometry,
     near: number = 0.05,
-    far: number = 100.0
+    far: number = 100.0,
+    referenceDistance: number = 0.65,
+    depthMode: 'natural' | 'aperture' = 'natural'
   ): FrustumBounds {
     // Sanitize eye distance to prevent division by zero or negative distance
     const safeZ = Math.max(0.1, Number.isFinite(eyeZ) ? eyeZ : 0.6);
@@ -69,8 +71,16 @@ export class ProjectionMath {
     const screenBottom = -halfH;
     const screenTop = halfH;
 
-    // Scaling ratio from screen plane at distance safeZ to near clipping plane
-    const scale = near / safeZ;
+    // Scaling ratio from screen plane to near clipping plane:
+    // 1. 'natural' mode (Recommended):
+    //    Scales the near clipping frustum relative to the viewer's calibrated seating distance (referenceDistance).
+    //    As the viewer leans forward (safeZ decreases), the camera physically approaches virtual objects in world space,
+    //    causing objects to naturally ENLARGE in the visual field without unnatural FOV dilation.
+    // 2. 'aperture' mode:
+    //    Treats the screen as a rigid physical aperture at Z=0. As safeZ approaches 0, the virtual FOV through the
+    //    aperture widens dramatically (scale = near / safeZ), which counter-intuitively shrinks objects in screen pixels.
+    const effectiveZ = depthMode === 'natural' ? Math.max(0.2, referenceDistance) : safeZ;
+    const scale = near / effectiveZ;
 
     const left = (screenLeft - safeX) * scale;
     const right = (screenRight - safeX) * scale;
@@ -97,6 +107,8 @@ export class ProjectionMath {
    * @param screen Physical screen geometry
    * @param near Near clipping distance
    * @param far Far clipping distance
+   * @param referenceDistance Calibrated viewing distance in meters (default 0.65m)
+   * @param depthMode 'natural' (objects enlarge on approach) or 'aperture' (rigid screen hole)
    */
   public static applyOffAxisProjection(
     camera: THREE.PerspectiveCamera,
@@ -105,9 +117,11 @@ export class ProjectionMath {
     eyeZ: number,
     screen: ScreenGeometry,
     near: number = 0.05,
-    far: number = 100.0
+    far: number = 100.0,
+    referenceDistance: number = 0.65,
+    depthMode: 'natural' | 'aperture' = 'natural'
   ): void {
-    const bounds = this.calculateFrustumBounds(eyeX, eyeY, eyeZ, screen, near, far);
+    const bounds = this.calculateFrustumBounds(eyeX, eyeY, eyeZ, screen, near, far, referenceDistance, depthMode);
 
     // Position camera exactly at viewer eye position
     camera.position.set(eyeX, eyeY, eyeZ);

@@ -95,10 +95,23 @@ Let us analyze how the projection responds to viewer movement:
 - On the viewer's screen, this expands the field of view into the virtual box toward the left side of internal objects.
 - In real life, when you look through a window while standing on the right, you can see around the left side of objects inside the room. The mathematics faithfully reproduces this motion parallax!
 
-### 2. Moving Closer to the Monitor ($Z_e$ decreases)
-- The scale factor $\frac{n}{Z_e}$ increases.
-- The angular field of view subtended by the screen expands.
-- Objects appear larger and closer, exactly as when pressing your face closer to a window.
+### 2. Moving Closer or Farther from the Monitor ($Z_e$)
+
+In off-axis projection, depth behavior presents an interesting perceptual consideration:
+
+#### The Rigid Aperture ("Window Hole") Effect
+In the strict geometric definition:
+$$\text{scale} = \frac{n}{Z_e}$$
+When projecting an object at depth $D$ behind the screen ($Z = -D$), the screen NDC coordinate size is proportional to:
+$$\text{Size}_{\text{NDC}} \propto \frac{Z_e}{D + Z_e}$$
+As the viewer moves closer to the screen ($Z_e$ decreases), the ratio $\frac{Z_e}{D + Z_e}$ actually **decreases**. This means the object occupies *fewer pixels on the monitor* (the virtual FOV through the aperture widens faster than the camera approaches the object). While this is mathematically what passes through a rigid aperture on an infinite plane, to a human observer looking at a physical desktop monitor, this creates a counter-intuitive **reverse dolly-zoom / Hitchcock vertigo effect**—leaning in feels like the virtual world is retreating!
+
+#### The Natural Approach Mode (Default)
+To provide intuitive depth perception matching human visual expectations, Looking Glass anchors the base aperture scale to the viewer's calibrated resting distance ($Z_{\text{ref}}$):
+$$\text{scale} = \frac{n}{Z_{\text{ref}}}$$
+With this scaling, the screen NDC coordinate size is proportional to:
+$$\text{Size}_{\text{NDC}} \propto \frac{Z_{\text{ref}}}{D + Z_e}$$
+Now, as the viewer leans forward ($Z_e$ decreases), virtual objects **naturally enlarge on screen** by $+20\text{--}30\%$, while lateral ($X, Y$) off-axis parallax remains $100\%$ authentic. Users can toggle between **Natural Approach** and **Fixed Aperture** in Settings.
 
 ### 3. Moving Upwards ($Y_e > 0$)
 - $top$ and $bottom$ shift downwards, allowing the viewer to look down upon the top surface of objects in the diorama.

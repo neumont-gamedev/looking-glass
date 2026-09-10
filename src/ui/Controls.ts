@@ -140,6 +140,15 @@ export class Controls {
           </select>
         </div>
 
+        <!-- Head Depth Behavior -->
+        <div class="setting-group">
+          <label for="depth-mode-select">Head Depth (Forward / Back) Behavior:</label>
+          <select id="depth-mode-select">
+            <option value="natural" selected>🔍 Natural Approach (Objects enlarge as you lean in)</option>
+            <option value="aperture">🪟 Fixed Aperture (Strict window aperture)</option>
+          </select>
+        </div>
+
         <!-- Scene Mode -->
         <div class="setting-group">
           <label for="scene-select">Virtual 3D Scene:</label>
@@ -217,6 +226,13 @@ export class Controls {
     projSelect?.addEventListener('change', (e) => {
       const mode = (e.target as HTMLSelectElement).value as ProjectionMode;
       this.perspectiveController.setProjectionMode(mode);
+    });
+
+    // Head Depth Mode change (Natural Approach vs Fixed Aperture)
+    const depthSelect = this.settingsDrawer.querySelector('#depth-mode-select') as HTMLSelectElement;
+    depthSelect?.addEventListener('change', (e) => {
+      const mode = (e.target as HTMLSelectElement).value as 'natural' | 'aperture';
+      this.perspectiveController.setDepthMode(mode);
     });
 
     // Scene select
