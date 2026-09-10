@@ -11,6 +11,7 @@ import { PerspectiveController, ProjectionMode } from '../rendering/PerspectiveC
 import { TrackingDebugView } from '../tracking/TrackingDebugView';
 import { SceneType } from '../rendering/DemoScene';
 import { CalibrationManager } from '../calibration/CalibrationManager';
+import { CustomFishOptions } from '../rendering/aquarium/CustomModelLoader';
 
 export enum InputMode {
   Webcam = 'Webcam',
@@ -23,6 +24,7 @@ export interface ControlsCallbacks {
   onSceneChange: (sceneType: SceneType) => void;
   onFeedFish?: () => void;
   onToggleCamera?: (enable: boolean) => Promise<boolean> | boolean;
+  onLoadCustomFish?: (source: string, count: number, options: CustomFishOptions) => Promise<number>;
 }
 
 export class Controls {
@@ -181,6 +183,43 @@ export class Controls {
           </p>
         </div>
 
+        <!-- Custom 3D Fish Models (.glb) -->
+        <div class="setting-group">
+          <h4>Custom 3D Fish Models (.glb)</h4>
+          <p style="font-size: 0.74rem; color: var(--text-secondary); line-height: 1.35; margin-bottom: 8px;">
+            Load custom fish models into the aquarium. Drop <code>.glb</code> files in <code>public/models/</code> or import directly below.
+          </p>
+
+          <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+            <label class="btn btn-primary" style="flex: 1; text-align: center; cursor: pointer; padding: 7px 10px; font-size: 0.78rem;">
+              📁 Import .glb Fish File
+              <input type="file" id="input-custom-fish-file" accept=".glb,.gltf" style="display: none;" />
+            </label>
+          </div>
+
+          <div style="display: flex; gap: 6px; margin-bottom: 8px;">
+            <input type="text" id="input-custom-fish-path" placeholder="e.g. models/my_fish.glb" style="flex: 1; padding: 6px 10px; font-size: 0.78rem; border-radius: 5px; background: rgba(15, 23, 42, 0.7); border: 1px solid var(--bg-surface-border); color: #fff;" />
+            <button id="btn-load-custom-fish" class="btn" style="padding: 6px 12px; font-size: 0.78rem;">Spawn</button>
+          </div>
+
+          <div class="slider-row">
+            <label>Model Size: <span id="val-custom-fish-scale">4.5</span> cm</label>
+            <input type="range" id="slider-custom-fish-scale" min="2.0" max="15.0" step="0.5" value="4.5" />
+          </div>
+
+          <div class="slider-row">
+            <label>Forward Axis:</label>
+            <select id="select-custom-fish-axis" style="padding: 3px 8px; font-size: 0.75rem; width: auto; background: var(--bg-surface); color: var(--text-primary); border: 1px solid var(--bg-surface-border); border-radius: 4px;">
+              <option value="+X" selected>+X (Default)</option>
+              <option value="+Z">+Z (Blender standard)</option>
+              <option value="-Z">-Z</option>
+              <option value="-X">-X</option>
+            </select>
+          </div>
+
+          <div id="custom-fish-status" style="font-size: 0.74rem; color: #34d399; margin-top: 6px; display: none;"></div>
+        </div>
+
         <!-- Predictive Positioning & Kinematic Smoothing -->
         <div class="setting-group">
           <h4>Motion Smoothing & Predictive Tracking</h4>
@@ -288,6 +327,81 @@ export class Controls {
     sceneSelect?.addEventListener('change', (e) => {
       const type = (e.target as HTMLSelectElement).value as SceneType;
       this.callbacks.onSceneChange(type);
+    });
+
+    // Custom Fish Model Scale Slider
+    const fishScaleSlider = this.settingsDrawer.querySelector('#slider-custom-fish-scale') as HTMLInputElement;
+    const fishScaleVal = this.settingsDrawer.querySelector('#val-custom-fish-scale');
+    fishScaleSlider?.addEventListener('input', (e) => {
+      const val = parseFloat((e.target as HTMLInputElement).value);
+      if (fishScaleVal) fishScaleVal.textContent = val.toFixed(1);
+    });
+
+    const getCustomFishOptions = (): CustomFishOptions => {
+      const scaleCm = fishScaleSlider ? parseFloat(fishScaleSlider.value) : 4.5;
+      const axisSelect = this.settingsDrawer.querySelector('#select-custom-fish-axis') as HTMLSelectElement;
+      const forwardAxis = (axisSelect?.value ?? '+X') as '+X' | '-X' | '+Z' | '-Z';
+      return {
+        targetLength: scaleCm / 100, // convert cm to meters
+        forwardAxis
+      };
+    };
+
+    const fishStatusEl = this.settingsDrawer.querySelector('#custom-fish-status') as HTMLElement;
+    const showFishStatus = (msg: string, isError: boolean = false) => {
+      if (!fishStatusEl) return;
+      fishStatusEl.textContent = msg;
+      fishStatusEl.style.color = isError ? '#f87171' : '#34d399';
+      fishStatusEl.style.display = 'block';
+      setTimeout(() => {
+        if (fishStatusEl) fishStatusEl.style.display = 'none';
+      }, 5000);
+    };
+
+    // 1. File Input Picker (Instant in-browser loading)
+    const fileInput = this.settingsDrawer.querySelector('#input-custom-fish-file') as HTMLInputElement;
+    fileInput?.addEventListener('change', async (e) => {
+      const files = (e.target as HTMLInputElement).files;
+      if (!files || files.length === 0) return;
+      const file = files[0];
+      const blobUrl = URL.createObjectURL(file);
+      const options = getCustomFishOptions();
+      options.name = file.name;
+
+      if (this.callbacks.onLoadCustomFish) {
+        showFishStatus(`Loading "${file.name}"...`);
+        try {
+          const count = await this.callbacks.onLoadCustomFish(blobUrl, 5, options);
+          showFishStatus(`✓ Spawned ${count} custom fish from "${file.name}"!`);
+        } catch (err: any) {
+          showFishStatus(`Error loading model: ${err?.message || err}`, true);
+        }
+      }
+    });
+
+    // 2. Path Input (Loading from public/models/)
+    const pathInput = this.settingsDrawer.querySelector('#input-custom-fish-path') as HTMLInputElement;
+    const loadPathBtn = this.settingsDrawer.querySelector('#btn-load-custom-fish') as HTMLButtonElement;
+    loadPathBtn?.addEventListener('click', async () => {
+      let path = pathInput?.value.trim() ?? '';
+      if (!path) {
+        showFishStatus('Please enter a model path (e.g. models/my_fish.glb)', true);
+        return;
+      }
+      if (!path.startsWith('/') && !path.startsWith('http')) {
+        path = '/' + path;
+      }
+      const options = getCustomFishOptions();
+
+      if (this.callbacks.onLoadCustomFish) {
+        showFishStatus(`Loading "${path}"...`);
+        try {
+          const count = await this.callbacks.onLoadCustomFish(path, 5, options);
+          showFishStatus(`✓ Spawned ${count} custom fish from "${path}"!`);
+        } catch (err: any) {
+          showFishStatus(`Could not find or load "${path}". Check public/models/`, true);
+        }
+      }
     });
 
     // Predictive Lookahead slider

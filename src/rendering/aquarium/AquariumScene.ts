@@ -13,6 +13,7 @@ import { ScreenGeometry } from '../../math/ScreenGeometry';
 import { BoidsSimulation } from './BoidsSimulation';
 import { Fish, FishSpecies } from './Fish';
 import { AquariumInteractions } from './AquariumInteractions';
+import { CustomModelLoader, CustomFishOptions, CustomDecorationOptions } from './CustomModelLoader';
 
 interface SeaweedStem {
   mesh: THREE.Mesh;
@@ -25,6 +26,7 @@ export class AquariumScene {
   public readonly group: THREE.Group = new THREE.Group();
   public readonly boids: BoidsSimulation;
   public readonly interactions: AquariumInteractions;
+  public readonly customModelLoader: CustomModelLoader = new CustomModelLoader();
 
   private screen: ScreenGeometry;
   private readonly depth: number = 0.85;
@@ -35,6 +37,7 @@ export class AquariumScene {
   private bubbleCount: number = 180;
   private seaweedStems: SeaweedStem[] = [];
   private causticLight: THREE.SpotLight | null = null;
+  private customDecorations: THREE.Group[] = [];
 
   constructor(screen: ScreenGeometry) {
     this.screen = screen;
@@ -79,6 +82,20 @@ export class AquariumScene {
       (s.mesh.material as THREE.Material).dispose();
     });
     this.seaweedStems = [];
+
+    // Clean up custom decorations
+    for (const deco of this.customDecorations) {
+      this.group.remove(deco);
+      deco.traverse((child) => {
+        if ((child as THREE.Mesh).geometry) (child as THREE.Mesh).geometry.dispose();
+        if ((child as THREE.Mesh).material) {
+          const mat = (child as THREE.Mesh).material;
+          if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
+          else mat.dispose();
+        }
+      });
+    }
+    this.customDecorations = [];
 
     while (this.group.children.length > 0) {
       const child = this.group.children[0];
@@ -405,5 +422,67 @@ export class AquariumScene {
 
     // 5. Update Boids Flocking Simulation
     this.boids.update(deltaTimeSeconds, timeSeconds, this.interactions.foodPellets);
+  }
+
+  /**
+   * Loads and spawns custom 3D fish from a GLB/GLTF model.
+   *
+   * @param urlOrBlob URL or object URL of the .glb/.gltf file
+   * @param count Number of fish to spawn (default: 5)
+   * @param options Target length, forward axis, and swimming dynamics
+   */
+  public async addCustomFish(
+    urlOrBlob: string,
+    count: number = 5,
+    options: CustomFishOptions = {}
+  ): Promise<number> {
+    const template = await this.customModelLoader.loadGLTF(urlOrBlob);
+    const W = this.screen.width;
+    const H = this.screen.height;
+    const D = this.depth;
+
+    for (let i = 0; i < count; i++) {
+      const instantiated = this.customModelLoader.instantiateFish(template, options);
+      const pos = new THREE.Vector3(
+        (Math.random() - 0.5) * (W * 0.7),
+        (Math.random() - 0.5) * (H * 0.6),
+        -0.20 - Math.random() * (D * 0.6)
+      );
+      const fish = new Fish(
+        {
+          species: FishSpecies.Custom,
+          scale: 1.0,
+          maxSpeed: options.maxSpeed ?? 0.16,
+          maxForce: options.maxForce ?? 0.38,
+          customModelRoot: instantiated.root,
+          animationMixer: instantiated.mixer,
+          forwardVector: instantiated.forwardVector
+        },
+        pos
+      );
+      this.boids.addFish(fish);
+      this.group.add(fish.group);
+    }
+    return count;
+  }
+
+  /**
+   * Loads and places a custom 3D decoration (e.g. ship, castle, chest) onto the seabed.
+   */
+  public async addCustomDecoration(
+    urlOrBlob: string,
+    options: CustomDecorationOptions = {}
+  ): Promise<THREE.Group> {
+    const template = await this.customModelLoader.loadGLTF(urlOrBlob);
+    const deco = this.customModelLoader.instantiateDecoration(template, options);
+
+    if (!options.position) {
+      // Default to seabed center
+      deco.position.set(0, -this.screen.height / 2, -this.depth * 0.5);
+    }
+
+    this.customDecorations.push(deco);
+    this.group.add(deco);
+    return deco;
   }
 }

@@ -10,7 +10,8 @@ export enum FishSpecies {
   Clownfish = 'Clownfish',
   BlueTang = 'BlueTang',
   YellowTang = 'YellowTang',
-  NeonTetra = 'NeonTetra'
+  NeonTetra = 'NeonTetra',
+  Custom = 'Custom'
 }
 
 export interface FishConfig {
@@ -18,6 +19,12 @@ export interface FishConfig {
   scale: number;
   maxSpeed: number;
   maxForce: number;
+  /** Optional custom 3D model root group */
+  customModelRoot?: THREE.Group;
+  /** Optional animation mixer for custom rigged/animated models */
+  animationMixer?: THREE.AnimationMixer | null;
+  /** Forward direction vector of the model (default: +X [1, 0, 0]) */
+  forwardVector?: THREE.Vector3;
 }
 
 export class Fish {
@@ -30,6 +37,11 @@ export class Fish {
   public acceleration: THREE.Vector3;
   public maxSpeed: number;
   public maxForce: number;
+
+  // Custom model components
+  private customModelRoot: THREE.Group | null = null;
+  private animationMixer: THREE.AnimationMixer | null = null;
+  private forwardVector: THREE.Vector3 = new THREE.Vector3(1, 0, 0);
 
   // Animation components
   private tailPivot: THREE.Group;
@@ -56,7 +68,15 @@ export class Fish {
     this.tailPivot = new THREE.Group();
     this.animPhase = Math.random() * Math.PI * 2;
 
-    this.buildMesh(config.scale);
+    if (config.customModelRoot) {
+      this.customModelRoot = config.customModelRoot;
+      this.animationMixer = config.animationMixer ?? null;
+      this.forwardVector = config.forwardVector ?? new THREE.Vector3(1, 0, 0);
+      this.group.add(this.customModelRoot);
+    } else {
+      this.buildMesh(config.scale);
+    }
+
     this.group.position.copy(this.position);
   }
 
@@ -285,31 +305,48 @@ export class Fish {
 
     // Orient mesh smoothly along velocity vector
     if (this.velocity.lengthSq() > 0.0001) {
-      // Fish model forward direction is +X
       const forward = this.velocity.clone().normalize();
       const targetQuat = new THREE.Quaternion().setFromUnitVectors(
-        new THREE.Vector3(1, 0, 0),
+        this.forwardVector,
         forward
       );
       this.group.quaternion.slerp(targetQuat, Math.min(1.0, deltaTime * 8.0));
     }
 
-    // Dynamic swimming animation: tail wags faster when moving faster
     const currentSpeed = this.velocity.length();
     const speedRatio = currentSpeed / this.maxSpeed;
-    const wagFreq = this.animFrequency * (0.8 + speedRatio * 1.5);
-    const wagAngle = Math.sin(timeSeconds * wagFreq + this.animPhase) * (0.35 + speedRatio * 0.3);
-    this.tailPivot.rotation.y = wagAngle;
 
-    // Flutter pectoral fins
-    if (this.pectoralLeft && this.pectoralRight) {
-      const flutter = Math.sin(timeSeconds * wagFreq * 1.5 + this.animPhase) * 0.25;
-      this.pectoralLeft.rotation.z = flutter;
-      this.pectoralRight.rotation.z = -flutter;
+    // Update skeletal animations if custom GLTF model has an animation mixer
+    if (this.animationMixer) {
+      // Speed up animation playback when fish swims faster!
+      const playSpeed = Math.max(0.6, speedRatio * 1.6);
+      this.animationMixer.update(deltaTime * playSpeed);
+    } else if (this.customModelRoot) {
+      // For static custom meshes without bones, add a subtle lifelike body yaw wiggle
+      const wagFreq = this.animFrequency * (0.8 + speedRatio * 1.5);
+      const wagAngle = Math.sin(timeSeconds * wagFreq + this.animPhase) * (0.12 + speedRatio * 0.1);
+      this.customModelRoot.rotation.y = wagAngle;
+    } else {
+      // Dynamic swimming animation for procedural fish: tail wags faster when moving faster
+      const wagFreq = this.animFrequency * (0.8 + speedRatio * 1.5);
+      const wagAngle = Math.sin(timeSeconds * wagFreq + this.animPhase) * (0.35 + speedRatio * 0.3);
+      this.tailPivot.rotation.y = wagAngle;
+
+      // Flutter pectoral fins
+      if (this.pectoralLeft && this.pectoralRight) {
+        const flutter = Math.sin(timeSeconds * wagFreq * 1.5 + this.animPhase) * 0.25;
+        this.pectoralLeft.rotation.z = flutter;
+        this.pectoralRight.rotation.z = -flutter;
+      }
     }
   }
 
   public dispose(): void {
+    if (this.animationMixer) {
+      this.animationMixer.stopAllAction();
+      this.animationMixer = null;
+    }
+
     this.group.traverse((child) => {
       if ((child as THREE.Mesh).geometry) {
         (child as THREE.Mesh).geometry.dispose();
