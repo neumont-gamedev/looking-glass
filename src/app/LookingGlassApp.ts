@@ -290,8 +290,13 @@ export class LookingGlassApp {
     if (this.sceneManager.wireframeCalibration.getVisible()) {
       const currentPose = this.perspectiveController.getCurrentPose();
       const calibDist = this.calibrationManager.getData().viewingDistance;
-      const isAligned = Math.abs(currentPose.z - calibDist) < 0.06 && Math.abs(currentPose.x) < 0.06;
-      this.sceneManager.wireframeCalibration.setAlignmentStatus(isAligned);
+      this.sceneManager.wireframeCalibration.updateViewingDistance(calibDist);
+      const alignResult = this.sceneManager.wireframeCalibration.checkAlignment(
+        currentPose.x,
+        currentPose.y,
+        currentPose.z
+      );
+      this.calibrationPanel.updateWireframeFeedback(alignResult.message, alignResult.isAligned);
     }
 
     // 3. Render 3D Scene

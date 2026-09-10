@@ -146,7 +146,7 @@ export class CalibrationPanel {
     this.wireframeHud.innerHTML = `
       <div class="hud-left">
         <span class="hud-badge">📐 Wireframe Perspective Alignment</span>
-        <span class="hud-instructions">Sit centered. Adjust distance until the 3D green box aligns with your screen's corner brackets.</span>
+        <span class="hud-instructions" id="wireframe-hud-instructions">Sit centered. Adjust distance until the 3D green box aligns with the amber corner brackets.</span>
       </div>
       <div class="hud-center">
         <label>Distance: <span id="wireframe-hud-val">${cm.toFixed(0)} cm (${inches.toFixed(1)} in)</span></label>
@@ -215,6 +215,26 @@ export class CalibrationPanel {
     if (showConfirmation) {
       const feedback = this.overlay.querySelector('#wireframe-feedback');
       if (feedback) feedback.textContent = '✓ Viewing distance calibrated & locked successfully!';
+    }
+  }
+
+  public updateWireframeFeedback(message: string, isAligned: boolean): void {
+    if (!this.isWireframeActive) return;
+    const inst = this.wireframeHud.querySelector('#wireframe-hud-instructions');
+    if (inst) {
+      inst.textContent = message;
+      (inst as HTMLElement).style.color = isAligned ? '#00ff66' : '#94a3b8';
+      (inst as HTMLElement).style.fontWeight = isAligned ? 'bold' : 'normal';
+    }
+    const lockBtn = this.wireframeHud.querySelector('#wireframe-hud-lock-btn') as HTMLElement;
+    if (lockBtn) {
+      if (isAligned) {
+        lockBtn.style.boxShadow = '0 0 16px rgba(0, 255, 102, 0.6)';
+        lockBtn.style.borderColor = '#00ff66';
+      } else {
+        lockBtn.style.boxShadow = 'none';
+        lockBtn.style.borderColor = 'transparent';
+      }
     }
   }
 
