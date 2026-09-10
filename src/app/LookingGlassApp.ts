@@ -93,7 +93,8 @@ export class LookingGlassApp {
       {
         onInputModeChange: (mode) => this.handleInputModeChange(mode),
         onSceneChange: (sceneType) => this.handleSceneChange(sceneType),
-        onFeedFish: () => this.handleFeedFish()
+        onFeedFish: () => this.handleFeedFish(),
+        onToggleCamera: (enable) => this.handleToggleCamera(enable)
       }
     );
 
@@ -218,18 +219,58 @@ export class LookingGlassApp {
     }
   };
 
+  private async handleToggleCamera(enable: boolean): Promise<boolean> {
+    if (enable) {
+      if (this.inputMode !== InputMode.Webcam) {
+        this.inputMode = InputMode.Webcam;
+        this.controls.setInputMode(InputMode.Webcam);
+      }
+      try {
+        this.statusPanel.setStatus(TrackingStatus.Initializing, 'Starting Webcam Tracking...');
+        await this.faceTracker.startCamera();
+        this.controls.setCameraActiveState(true);
+        return true;
+      } catch (e) {
+        console.warn('[LookingGlassApp] Failed to start camera:', e);
+        this.controls.setCameraActiveState(false);
+        return false;
+      }
+    } else {
+      // Power down camera stream & release webcam hardware
+      this.faceTracker.stopCamera();
+      this.currentResult = null;
+      this.currentRawPose = null;
+      this.perspectiveController.updatePose(
+        { x: 0, y: 0, z: 0.65, confidence: 0, timestamp: performance.now() / 1000 },
+        false,
+        performance.now() / 1000
+      );
+      this.statusPanel.setStatus(TrackingStatus.CameraOff, 'Camera Off');
+      this.controls.setCameraActiveState(false);
+      return false;
+    }
+  }
+
   private handleInputModeChange(mode: InputMode): void {
     this.inputMode = mode;
 
     if (mode === InputMode.Webcam) {
-      this.faceTracker.initialize().catch((err) => {
-        console.warn('[LookingGlassApp] Camera init failed on switch:', err);
+      this.faceTracker.startCamera().then(() => {
+        this.controls.setCameraActiveState(true);
+      }).catch((err) => {
+        console.warn('[LookingGlassApp] Camera start failed on switch:', err);
+        this.controls.setCameraActiveState(false);
       });
       this.statusPanel.setStatus(TrackingStatus.Initializing, 'Starting Webcam Tracking...');
-    } else if (mode === InputMode.Mouse) {
-      this.statusPanel.setStatus(TrackingStatus.FallbackMouse);
-    } else if (mode === InputMode.Auto) {
-      this.statusPanel.setStatus(TrackingStatus.FallbackAuto);
+    } else {
+      // Power down webcam hardware when switching to Mouse or Auto mode
+      this.faceTracker.stopCamera();
+      this.controls.setCameraActiveState(false);
+      if (mode === InputMode.Mouse) {
+        this.statusPanel.setStatus(TrackingStatus.FallbackMouse);
+      } else if (mode === InputMode.Auto) {
+        this.statusPanel.setStatus(TrackingStatus.FallbackAuto);
+      }
     }
   }
 
@@ -247,9 +288,12 @@ export class LookingGlassApp {
     this.lastFrameTime = performance.now();
 
     // Start Webcam tracking by default
-    this.faceTracker.initialize().catch((err) => {
+    this.faceTracker.initialize().then(() => {
+      this.controls.setCameraActiveState(true);
+    }).catch((err) => {
       console.warn('[LookingGlassApp] Default camera init error, falling back to mouse:', err);
       this.controls.setInputMode(InputMode.Mouse);
+      this.controls.setCameraActiveState(false);
     });
 
     this.renderLoop();

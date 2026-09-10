@@ -43,9 +43,74 @@ export class FaceTracker {
   }
 
   /**
+   * Checks if camera stream is active and running.
+   */
+  public isCameraRunning(): boolean {
+    return this.isRunning && !!this.video.srcObject;
+  }
+
+  /**
+   * Starts or restarts the webcam stream. Reuses loaded FaceLandmarker model if available.
+   */
+  public async startCamera(): Promise<void> {
+    if (this.isCameraRunning()) return;
+
+    if (!this.faceLandmarker) {
+      await this.initialize();
+      return;
+    }
+
+    try {
+      this.updateStatus(TrackingStatus.Initializing, 'Starting camera...');
+      await this.startWebcam();
+      this.isRunning = true;
+      this.updateStatus(TrackingStatus.Active, 'Tracking active');
+      this.startProcessingLoop();
+    } catch (err: unknown) {
+      const error = err as Error;
+      console.error('[FaceTracker] Camera start failed:', error);
+      if (error?.name === 'NotAllowedError' || error?.name === 'PermissionDeniedError') {
+        this.updateStatus(TrackingStatus.CameraDenied, 'Camera access denied by user');
+      } else {
+        this.updateStatus(TrackingStatus.Error, error?.message || 'Failed to start camera');
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Stops the webcam stream and turns off hardware camera indicator LED.
+   * Keeps loaded FaceLandmarker in memory for fast restart.
+   */
+  public stopCamera(): void {
+    this.isRunning = false;
+    if (this.rVfcHandle !== null && 'cancelVideoFrameCallback' in this.video) {
+      (this.video as any).cancelVideoFrameCallback(this.rVfcHandle);
+      this.rVfcHandle = null;
+    }
+    if (this.animationFrameId !== null) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+
+    if (this.video.srcObject) {
+      const stream = this.video.srcObject as MediaStream;
+      stream.getTracks().forEach((track) => track.stop());
+      this.video.srcObject = null;
+    }
+
+    this.updateStatus(TrackingStatus.CameraOff, 'Camera Off');
+  }
+
+  /**
    * Initializes MediaPipe FaceLandmarker and starts webcam capture.
    */
   public async initialize(): Promise<void> {
+    if (this.faceLandmarker) {
+      await this.startCamera();
+      return;
+    }
+
     this.updateStatus(TrackingStatus.Initializing, 'Loading FaceLandmarker model...');
 
     try {
@@ -181,21 +246,7 @@ export class FaceTracker {
   }
 
   public stop(): void {
-    this.isRunning = false;
-    if (this.rVfcHandle !== null && 'cancelVideoFrameCallback' in this.video) {
-      (this.video as any).cancelVideoFrameCallback(this.rVfcHandle);
-      this.rVfcHandle = null;
-    }
-    if (this.animationFrameId !== null) {
-      cancelAnimationFrame(this.animationFrameId);
-      this.animationFrameId = null;
-    }
-
-    if (this.video.srcObject) {
-      const stream = this.video.srcObject as MediaStream;
-      stream.getTracks().forEach((track) => track.stop());
-      this.video.srcObject = null;
-    }
+    this.stopCamera();
 
     if (this.faceLandmarker) {
       this.faceLandmarker.close();

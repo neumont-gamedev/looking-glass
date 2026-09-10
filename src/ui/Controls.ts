@@ -22,12 +22,14 @@ export interface ControlsCallbacks {
   onInputModeChange: (mode: InputMode) => void;
   onSceneChange: (sceneType: SceneType) => void;
   onFeedFish?: () => void;
+  onToggleCamera?: (enable: boolean) => Promise<boolean> | boolean;
 }
 
 export class Controls {
   private topBar: HTMLElement;
   private settingsDrawer: HTMLElement;
   private isDrawerOpen: boolean = false;
+  private isCameraActive: boolean = true;
 
   private currentInputMode: InputMode = InputMode.Webcam;
   private perspectiveController: PerspectiveController;
@@ -129,6 +131,17 @@ export class Controls {
             <option value="${InputMode.Mouse}">🖱️ Mouse Simulation Mode</option>
             <option value="${InputMode.Auto}">🔄 Auto Demo Orbit Mode</option>
           </select>
+        </div>
+
+        <!-- Camera Power Toggle -->
+        <div class="setting-group">
+          <label>Camera Tracking Power:</label>
+          <button id="btn-toggle-camera" class="btn-camera-toggle btn-camera-on" title="Turn camera on or off">
+            🟢 Camera On (Click to Turn Off)
+          </button>
+          <small style="color: var(--text-secondary); font-size: 0.72rem; line-height: 1.3; display: block; margin-top: 5px;">
+            Turning off releases your webcam device and powers down the camera LED.
+          </small>
         </div>
 
         <!-- Projection Mode -->
@@ -241,6 +254,21 @@ export class Controls {
       this.callbacks.onInputModeChange(mode);
     });
 
+    // Camera power toggle button
+    const cameraToggleBtn = this.settingsDrawer.querySelector('#btn-toggle-camera') as HTMLButtonElement;
+    cameraToggleBtn?.addEventListener('click', async () => {
+      const targetState = !this.isCameraActive;
+      if (this.callbacks.onToggleCamera) {
+        cameraToggleBtn.disabled = true;
+        try {
+          const actualState = await this.callbacks.onToggleCamera(targetState);
+          this.setCameraActiveState(actualState);
+        } finally {
+          cameraToggleBtn.disabled = false;
+        }
+      }
+    });
+
     // Projection mode change
     const projSelect = this.settingsDrawer.querySelector('#proj-mode-select') as HTMLSelectElement;
     projSelect?.addEventListener('change', (e) => {
@@ -320,5 +348,25 @@ export class Controls {
     pipToggle?.addEventListener('change', (e) => {
       this.debugView.setVisible((e.target as HTMLInputElement).checked);
     });
+  }
+
+  public setCameraActiveState(active: boolean): void {
+    this.isCameraActive = active;
+    const btn = this.settingsDrawer.querySelector('#btn-toggle-camera') as HTMLButtonElement;
+    if (!btn) return;
+
+    if (active) {
+      btn.textContent = '🟢 Camera On (Click to Turn Off)';
+      btn.className = 'btn-camera-toggle btn-camera-on';
+      btn.title = 'Click to turn off camera';
+    } else {
+      btn.textContent = '🔴 Camera Off (Click to Turn On)';
+      btn.className = 'btn-camera-toggle btn-camera-off';
+      btn.title = 'Click to turn on camera';
+    }
+  }
+
+  public getCameraActiveState(): boolean {
+    return this.isCameraActive;
   }
 }

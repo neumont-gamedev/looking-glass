@@ -61,6 +61,10 @@ export class StatusPanel {
         this.element.classList.add('status-auto');
         this.text.textContent = customMessage ?? 'Auto Demo Mode';
         break;
+      case TrackingStatus.CameraOff:
+        this.element.classList.add('status-warning');
+        this.text.textContent = customMessage ?? 'Camera Off';
+        break;
       case TrackingStatus.Initializing:
       default:
         this.element.classList.add('status-init');

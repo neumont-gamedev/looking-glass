@@ -12,7 +12,8 @@ export enum TrackingStatus {
   CameraDenied = 'CameraDenied',
   Error = 'Error',
   FallbackMouse = 'FallbackMouse',
-  FallbackAuto = 'FallbackAuto'
+  FallbackAuto = 'FallbackAuto',
+  CameraOff = 'CameraOff'
 }
 
 export interface NormalizedLandmark {
