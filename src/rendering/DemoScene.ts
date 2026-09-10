@@ -283,19 +283,25 @@ export class DemoScene {
     const axes = new THREE.AxesHelper(0.15);
     this.group.add(axes);
 
-    // Screen frame boundary
-    const frameGeo = new THREE.RingGeometry(W * 0.495, W * 0.505, 4);
-    const frameMat = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true });
-    const frame = new THREE.Mesh(frameGeo, frameMat);
-    frame.position.set(0, 0, 0);
-    frame.rotation.z = Math.PI / 4;
-    this.group.add(frame);
+    // 1. 3D Wireframe Bounding Box around the scene (from Z = 0 to Z = -0.85m)
+    const maxDepth = 0.85;
+    const boxGeo = new THREE.BoxGeometry(W, H, maxDepth);
+    const edgesGeo = new THREE.EdgesGeometry(boxGeo);
+    const boxMat = new THREE.LineBasicMaterial({
+      color: 0x00e5ff, // Bright cyan wireframe box
+      transparent: true,
+      opacity: 0.85
+    });
+    const wireBox = new THREE.LineSegments(edgesGeo, boxMat);
+    wireBox.position.set(0, 0, -maxDepth / 2);
+    this.group.add(wireBox);
 
-    // Metric depth spheres along center line (at z = -0.2m, -0.4m, -0.6m, -0.8m)
+    // 2. Metric depth spheres and wireframe ribs along the tunnel (at z = -0.2m, -0.4m, -0.6m, -0.8m)
     const depths = [0.2, 0.4, 0.6, 0.8];
-    const colors = [0x00ff00, 0x00ffff, 0xffff00, 0xff00ff];
+    const colors = [0x00ff88, 0x00e5ff, 0xffb703, 0xff00aa];
 
     depths.forEach((d, idx) => {
+      // Metric depth sphere along center line
       const sGeo = new THREE.SphereGeometry(0.02, 16, 16);
       const sMat = new THREE.MeshStandardMaterial({ color: colors[idx], roughness: 0.3 });
       const s = new THREE.Mesh(sGeo, sMat);
@@ -303,9 +309,26 @@ export class DemoScene {
       this.group.add(s);
 
       // Depth grid floor
-      const grid = new THREE.GridHelper(W, 10, colors[idx], 0x333333);
+      const grid = new THREE.GridHelper(W, 10, colors[idx], 0x334455);
       grid.position.set(0, -H / 2, -d);
       this.group.add(grid);
+
+      // Wireframe cross-section rib around the box at this depth
+      const ribPositions = [
+        -W / 2, -H / 2, -d,
+         W / 2, -H / 2, -d,
+         W / 2,  H / 2, -d,
+        -W / 2,  H / 2, -d
+      ];
+      const ribGeo = new THREE.BufferGeometry();
+      ribGeo.setAttribute('position', new THREE.Float32BufferAttribute(ribPositions, 3));
+      const ribMat = new THREE.LineBasicMaterial({
+        color: colors[idx],
+        transparent: true,
+        opacity: 0.5
+      });
+      const ribLine = new THREE.LineLoop(ribGeo, ribMat);
+      this.group.add(ribLine);
     });
   }
 
