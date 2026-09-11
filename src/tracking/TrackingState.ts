@@ -27,6 +27,7 @@ export interface FaceTrackingResult {
   confidence: number;
   timestamp: number;
   landmarks: NormalizedLandmark[];
+  inferenceLatencyMs?: number;
 }
 
 export interface ViewerPose {

@@ -315,7 +315,6 @@ export class LookingGlassApp {
     const timeSec = now / 1000;
 
     const fps = this.fpsCounter.update();
-    this.controls.updateFps(fps);
 
     // Handle Auto Demo simulation if active
     if (this.inputMode === InputMode.Auto) {
@@ -337,6 +336,18 @@ export class LookingGlassApp {
 
     // 1. Update perspective camera interpolation
     this.perspectiveController.update(deltaTimeSeconds, timeSec);
+    const currentPose = this.perspectiveController.getCurrentPose();
+
+    // Update Top-Left Debug Information HUD
+    this.controls.updateDebugHud({
+      fps,
+      trackFps: this.faceTracker.trackFps,
+      latencyMs: this.faceTracker.inferenceLatencyMs,
+      poseX: currentPose.x,
+      poseY: currentPose.y,
+      poseZ: currentPose.z,
+      isTrackingActive: this.currentResult?.visible ?? false
+    });
 
     // 2. Update active scene animations (aquarium boids, kelp, bubbles, or diorama)
     this.sceneManager.update(deltaTimeSeconds, timeSec);

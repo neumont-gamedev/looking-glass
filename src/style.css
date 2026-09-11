@@ -97,11 +97,11 @@ html, body {
 
 .debug-hud-box {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 4px 10px;
-  background: rgba(10, 14, 22, 0.78);
-  border: 1px solid rgba(0, 229, 255, 0.25);
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 12px;
+  background: rgba(10, 14, 22, 0.82);
+  border: 1px solid rgba(0, 229, 255, 0.22);
   border-radius: 6px;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(8px);
@@ -109,14 +109,26 @@ html, body {
   pointer-events: auto;
 }
 
+.debug-hud-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.debug-hud-subrow {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 3px;
+  font-size: 0.72rem;
+}
+
 .debug-hud-item {
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  gap: 5px;
 }
 
 .debug-hud-label {
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   font-weight: 600;
   letter-spacing: 0.08em;
   color: #64748b;
@@ -127,7 +139,29 @@ html, body {
   font-size: 0.85rem;
   font-weight: 700;
   color: #00ff88;
-  min-width: 24px;
+  min-width: 20px;
+}
+
+.debug-hud-unit {
+  font-size: 0.68rem;
+  color: #64748b;
+}
+
+.debug-hud-divider {
+  width: 1px;
+  height: 12px;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.debug-hud-pose {
+  color: #94a3b8;
+  letter-spacing: 0.02em;
+}
+
+.pose-coord {
+  font-weight: 600;
+  color: #ffffff;
+  margin-right: 6px;
 }
 
 .topbar-actions {

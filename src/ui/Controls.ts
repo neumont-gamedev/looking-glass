@@ -79,6 +79,11 @@ export class Controls {
   }
 
   private debugFpsValEl: HTMLElement | null = null;
+  private debugTrackFpsValEl: HTMLElement | null = null;
+  private debugLatencyValEl: HTMLElement | null = null;
+  private debugPoseXEl: HTMLElement | null = null;
+  private debugPoseYEl: HTMLElement | null = null;
+  private debugPoseZEl: HTMLElement | null = null;
 
   private buildTopBar(): void {
     this.topBar.innerHTML = `
@@ -88,9 +93,32 @@ export class Controls {
           <span class="app-tagline">A head-tracked window into 3D space</span>
         </div>
         <div class="debug-hud-box" id="debug-hud-box">
-          <div class="debug-hud-item">
-            <span class="debug-hud-label">FPS</span>
-            <span class="debug-hud-val" id="debug-fps-val">60</span>
+          <div class="debug-hud-row">
+            <div class="debug-hud-item">
+              <span class="debug-hud-label">FPS</span>
+              <span class="debug-hud-val" id="debug-fps-val">60</span>
+            </div>
+            <div class="debug-hud-divider"></div>
+            <div class="debug-hud-item">
+              <span class="debug-hud-label">TRACK</span>
+              <span class="debug-hud-val" id="debug-track-fps-val">--</span>
+              <span class="debug-hud-unit">fps</span>
+            </div>
+            <div class="debug-hud-divider"></div>
+            <div class="debug-hud-item">
+              <span class="debug-hud-label">LATENCY</span>
+              <span class="debug-hud-val" id="debug-latency-val">--</span>
+              <span class="debug-hud-unit">ms</span>
+            </div>
+          </div>
+          <div class="debug-hud-row debug-hud-subrow">
+            <span class="debug-hud-label">HEAD</span>
+            <span class="debug-hud-pose">
+              X: <span id="debug-pose-x" class="pose-coord">+0.0</span>
+              Y: <span id="debug-pose-y" class="pose-coord">+0.0</span>
+              Z: <span id="debug-pose-z" class="pose-coord">65.0</span>
+              <span class="debug-hud-unit">cm</span>
+            </span>
           </div>
         </div>
       </div>
@@ -103,6 +131,11 @@ export class Controls {
     `;
 
     this.debugFpsValEl = this.topBar.querySelector('#debug-fps-val');
+    this.debugTrackFpsValEl = this.topBar.querySelector('#debug-track-fps-val');
+    this.debugLatencyValEl = this.topBar.querySelector('#debug-latency-val');
+    this.debugPoseXEl = this.topBar.querySelector('#debug-pose-x');
+    this.debugPoseYEl = this.topBar.querySelector('#debug-pose-y');
+    this.debugPoseZEl = this.topBar.querySelector('#debug-pose-z');
 
     this.topBar.querySelector('#btn-feed-fish')?.addEventListener('click', () => {
       if (this.callbacks.onFeedFish) this.callbacks.onFeedFish();
@@ -125,16 +158,57 @@ export class Controls {
     });
   }
 
-  public updateFps(fps: number): void {
+  public updateDebugHud(data: {
+    fps: number;
+    trackFps: number;
+    latencyMs: number;
+    poseX: number;
+    poseY: number;
+    poseZ: number;
+    isTrackingActive: boolean;
+  }): void {
     if (this.debugFpsValEl) {
-      this.debugFpsValEl.textContent = fps.toString();
-      if (fps >= 55) {
+      this.debugFpsValEl.textContent = data.fps.toString();
+      if (data.fps >= 55) {
         this.debugFpsValEl.style.color = '#00ff88';
-      } else if (fps >= 30) {
+      } else if (data.fps >= 30) {
         this.debugFpsValEl.style.color = '#00e5ff';
       } else {
         this.debugFpsValEl.style.color = '#ff3366';
       }
+    }
+
+    if (this.debugTrackFpsValEl) {
+      if (this.currentInputMode === InputMode.Webcam) {
+        this.debugTrackFpsValEl.textContent = data.trackFps > 0 ? data.trackFps.toString() : '--';
+        this.debugTrackFpsValEl.style.color = data.trackFps >= 25 ? '#00ff88' : data.trackFps >= 15 ? '#00e5ff' : '#94a3b8';
+      } else {
+        this.debugTrackFpsValEl.textContent = this.currentInputMode === InputMode.Mouse ? 'Mouse' : 'Auto';
+        this.debugTrackFpsValEl.style.color = '#38bdf8';
+      }
+    }
+
+    if (this.debugLatencyValEl) {
+      if (this.currentInputMode === InputMode.Webcam && data.latencyMs > 0) {
+        this.debugLatencyValEl.textContent = data.latencyMs.toFixed(1);
+        this.debugLatencyValEl.style.color = data.latencyMs <= 20 ? '#00ff88' : data.latencyMs <= 35 ? '#00e5ff' : '#ffb703';
+      } else {
+        this.debugLatencyValEl.textContent = '--';
+        this.debugLatencyValEl.style.color = '#64748b';
+      }
+    }
+
+    if (this.debugPoseXEl && this.debugPoseYEl && this.debugPoseZEl) {
+      const xCm = data.poseX * 100;
+      const yCm = data.poseY * 100;
+      const zCm = data.poseZ * 100;
+
+      const xSign = xCm >= 0 ? '+' : '';
+      const ySign = yCm >= 0 ? '+' : '';
+
+      this.debugPoseXEl.textContent = `${xSign}${xCm.toFixed(1)}`;
+      this.debugPoseYEl.textContent = `${ySign}${yCm.toFixed(1)}`;
+      this.debugPoseZEl.textContent = `${zCm.toFixed(1)}`;
     }
   }
 

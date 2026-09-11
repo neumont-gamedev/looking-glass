@@ -7,6 +7,7 @@
 
 import { FilesetResolver, FaceLandmarker } from '@mediapipe/tasks-vision';
 import { FaceTrackingResult, TrackingStatus } from './TrackingState';
+import { FpsCounter } from '../utils/Debug';
 
 export type TrackingResultCallback = (result: FaceTrackingResult) => void;
 export type TrackingStatusCallback = (status: TrackingStatus, message?: string) => void;
@@ -17,6 +18,10 @@ export class FaceTracker {
   private isRunning: boolean = false;
   private animationFrameId: number | null = null;
   private lastVideoTime: number = -1;
+
+  private trackFpsCounter: FpsCounter = new FpsCounter();
+  public trackFps: number = 0;
+  public inferenceLatencyMs: number = 0;
 
   private onResultCallback: TrackingResultCallback | null = null;
   private onStatusCallback: TrackingStatusCallback | null = null;
@@ -99,6 +104,8 @@ export class FaceTracker {
       this.video.srcObject = null;
     }
 
+    this.trackFps = 0;
+    this.inferenceLatencyMs = 0;
     this.updateStatus(TrackingStatus.CameraOff, 'Camera Off');
   }
 
@@ -146,7 +153,7 @@ export class FaceTracker {
       if (error?.name === 'NotAllowedError' || error?.name === 'PermissionDeniedError') {
         this.updateStatus(TrackingStatus.CameraDenied, 'Camera access denied by user');
       } else {
-        this.updateStatus(TrackingStatus.Error, error?.message || 'Failed to initialize face tracker');
+        this.updateStatus(TrackingStatus.Error, error?.message || 'Failed to initialize tracking');
       }
       throw error;
     }
@@ -208,9 +215,12 @@ export class FaceTracker {
 
     const nowInMs = frameNow ?? performance.now();
     this.isProcessing = true;
+    const startInference = performance.now();
 
     try {
       const results = this.faceLandmarker.detectForVideo(this.video, nowInMs);
+      this.inferenceLatencyMs = Math.round((performance.now() - startInference) * 10) / 10;
+      this.trackFps = this.trackFpsCounter.update();
 
       if (results && results.faceLandmarks && results.faceLandmarks.length > 0) {
         const landmarks = results.faceLandmarks[0];
@@ -219,7 +229,8 @@ export class FaceTracker {
             visible: true,
             confidence: 1.0,
             timestamp: nowInMs / 1000,
-            landmarks
+            landmarks,
+            inferenceLatencyMs: this.inferenceLatencyMs
           });
         }
       } else {
@@ -228,7 +239,8 @@ export class FaceTracker {
             visible: false,
             confidence: 0.0,
             timestamp: nowInMs / 1000,
-            landmarks: []
+            landmarks: [],
+            inferenceLatencyMs: this.inferenceLatencyMs
           });
         }
       }
