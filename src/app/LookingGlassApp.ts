@@ -102,6 +102,9 @@ export class LookingGlassApp {
             this.controls.setScene(SceneType.Aquarium);
           }
           return await this.sceneManager.aquariumScene.addCustomFish(source, count, options);
+        },
+        onToggleDebugHud: (visible) => {
+          this.sceneManager.demoScene.setAxesVisible(visible);
         }
       }
     );
@@ -304,6 +307,7 @@ export class LookingGlassApp {
   private handleSceneChange(sceneType: SceneType): void {
     const screen = this.calibrationManager.getScreenGeometry();
     this.sceneManager.setSceneType(sceneType, screen);
+    this.sceneManager.demoScene.setAxesVisible(this.controls.getIsDebugHudVisible());
     this.controls.setScene(sceneType);
   }
 

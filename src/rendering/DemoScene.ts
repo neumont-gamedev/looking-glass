@@ -20,10 +20,23 @@ export class DemoScene {
   public readonly group: THREE.Group = new THREE.Group();
   private animatedMeshes: Array<{ mesh: THREE.Object3D; update: (time: number) => void }> = [];
   private particles: THREE.Points | null = null;
+  private axes: THREE.AxesHelper | null = null;
+  private axesVisible: boolean = true;
   private currentSceneType: SceneType = SceneType.Diorama;
 
   constructor(screen: ScreenGeometry) {
     this.buildDiorama(screen);
+  }
+
+  public setAxesVisible(visible: boolean): void {
+    this.axesVisible = visible;
+    if (this.axes) {
+      this.axes.visible = visible;
+    }
+  }
+
+  public getAxesVisible(): boolean {
+    return this.axesVisible;
   }
 
   public setSceneType(type: SceneType, screen: ScreenGeometry): void {
@@ -71,6 +84,7 @@ export class DemoScene {
     }
     this.animatedMeshes = [];
     this.particles = null;
+    this.axes = null;
   }
 
   /**
@@ -291,9 +305,10 @@ export class DemoScene {
     const W = screen.width;
     const H = screen.height;
 
-    // Coordinate axes at origin (0, 0, 0)
-    const axes = new THREE.AxesHelper(0.15);
-    this.group.add(axes);
+    // Coordinate axes at origin (0, 0, 0) - half length: 0.075m (7.5cm)
+    this.axes = new THREE.AxesHelper(0.075);
+    this.axes.visible = this.axesVisible;
+    this.group.add(this.axes);
 
     // 1. 3D Wireframe Bounding Box around the scene (from Z = 0 to Z = -0.45m)
     const maxDepth = 0.45;

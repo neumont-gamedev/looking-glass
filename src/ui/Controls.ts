@@ -25,6 +25,7 @@ export interface ControlsCallbacks {
   onFeedFish?: () => void;
   onToggleCamera?: (enable: boolean) => Promise<boolean> | boolean;
   onLoadCustomFish?: (source: string, count: number, options: CustomFishOptions) => Promise<number>;
+  onToggleDebugHud?: (visible: boolean) => void;
 }
 
 export class Controls {
@@ -163,18 +164,22 @@ export class Controls {
   }
 
   public toggleDebugHud(): boolean {
-    this.isDebugHudVisible = !this.isDebugHudVisible;
-    if (this.debugHudBoxEl) {
-      this.debugHudBoxEl.style.display = this.isDebugHudVisible ? 'flex' : 'none';
-    }
-    return this.isDebugHudVisible;
+    return this.setDebugHudVisible(!this.isDebugHudVisible);
   }
 
-  public setDebugHudVisible(visible: boolean): void {
+  public setDebugHudVisible(visible: boolean): boolean {
     this.isDebugHudVisible = visible;
     if (this.debugHudBoxEl) {
       this.debugHudBoxEl.style.display = this.isDebugHudVisible ? 'flex' : 'none';
     }
+    const debugHudToggle = this.settingsDrawer.querySelector('#toggle-debug-hud') as HTMLInputElement;
+    if (debugHudToggle && debugHudToggle.checked !== this.isDebugHudVisible) {
+      debugHudToggle.checked = this.isDebugHudVisible;
+    }
+    if (this.callbacks.onToggleDebugHud) {
+      this.callbacks.onToggleDebugHud(this.isDebugHudVisible);
+    }
+    return this.isDebugHudVisible;
   }
 
   public getIsDebugHudVisible(): boolean {
@@ -419,6 +424,10 @@ export class Controls {
         <div class="setting-group">
           <h4>Visual Overlays</h4>
           <label class="checkbox-row">
+            <input type="checkbox" id="toggle-debug-hud" checked />
+            <span>Show Debug Telemetry HUD & Origin Axes (Hot-key: ~)</span>
+          </label>
+          <label class="checkbox-row">
             <input type="checkbox" id="toggle-webcam-pip" />
             <span>Show Webcam PIP & Face Landmarks</span>
           </label>
@@ -606,6 +615,12 @@ export class Controls {
       if (invertXToggle) {
         invertXToggle.checked = !!calib.invertHorizontal;
       }
+    });
+
+    // Debug HUD & Origin Axes toggle
+    const debugHudToggle = this.settingsDrawer.querySelector('#toggle-debug-hud') as HTMLInputElement;
+    debugHudToggle?.addEventListener('change', (e) => {
+      this.setDebugHudVisible((e.target as HTMLInputElement).checked);
     });
 
     // Webcam PIP toggle
