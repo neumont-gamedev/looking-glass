@@ -305,8 +305,8 @@ export class DemoScene {
     const W = screen.width;
     const H = screen.height;
 
-    // Coordinate axes at origin (0, 0, 0) - half length: 0.075m (7.5cm)
-    this.axes = new THREE.AxesHelper(0.075);
+    // Coordinate axes at origin (0, 0, 0) - half length: 0.0375m (3.75cm)
+    this.axes = new THREE.AxesHelper(0.0375);
     this.axes.visible = this.axesVisible;
     this.group.add(this.axes);
 
@@ -437,8 +437,8 @@ export class DemoScene {
       depthTest: true
     });
     const sprite = new THREE.Sprite(spriteMat);
-    // Half size: was (0.065, 0.01625) -> now (0.0325, 0.008125) (~3.25cm wide by 0.81cm tall)
-    sprite.scale.set(0.0325, 0.008125, 1.0);
+    // Scaled +50%: ~4.88cm wide by 1.22cm tall
+    sprite.scale.set(0.04875, 0.0121875, 1.0);
     return sprite;
   }
 
