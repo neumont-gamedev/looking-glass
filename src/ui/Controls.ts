@@ -78,11 +78,21 @@ export class Controls {
     return this.currentInputMode;
   }
 
+  private debugFpsValEl: HTMLElement | null = null;
+
   private buildTopBar(): void {
     this.topBar.innerHTML = `
-      <div class="logo-group">
-        <h1 class="app-title">LOOKING GLASS</h1>
-        <span class="app-tagline">A head-tracked window into 3D space</span>
+      <div class="topbar-left">
+        <div class="logo-group">
+          <h1 class="app-title">LOOKING GLASS</h1>
+          <span class="app-tagline">A head-tracked window into 3D space</span>
+        </div>
+        <div class="debug-hud-box" id="debug-hud-box">
+          <div class="debug-hud-item">
+            <span class="debug-hud-label">FPS</span>
+            <span class="debug-hud-val" id="debug-fps-val">60</span>
+          </div>
+        </div>
       </div>
       <div class="topbar-actions">
         <button class="btn btn-hud" id="btn-feed-fish">Feed Fish 🦐</button>
@@ -91,6 +101,8 @@ export class Controls {
         <button class="btn btn-hud" id="btn-fullscreen">⛶ Fullscreen</button>
       </div>
     `;
+
+    this.debugFpsValEl = this.topBar.querySelector('#debug-fps-val');
 
     this.topBar.querySelector('#btn-feed-fish')?.addEventListener('click', () => {
       if (this.callbacks.onFeedFish) this.callbacks.onFeedFish();
@@ -111,6 +123,19 @@ export class Controls {
         document.exitFullscreen().catch((err) => console.warn(err));
       }
     });
+  }
+
+  public updateFps(fps: number): void {
+    if (this.debugFpsValEl) {
+      this.debugFpsValEl.textContent = fps.toString();
+      if (fps >= 55) {
+        this.debugFpsValEl.style.color = '#00ff88';
+      } else if (fps >= 30) {
+        this.debugFpsValEl.style.color = '#00e5ff';
+      } else {
+        this.debugFpsValEl.style.color = '#ff3366';
+      }
+    }
   }
 
   private toggleDrawer(): void {

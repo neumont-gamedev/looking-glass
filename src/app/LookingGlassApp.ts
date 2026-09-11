@@ -315,6 +315,7 @@ export class LookingGlassApp {
     const timeSec = now / 1000;
 
     const fps = this.fpsCounter.update();
+    this.controls.updateFps(fps);
 
     // Handle Auto Demo simulation if active
     if (this.inputMode === InputMode.Auto) {
