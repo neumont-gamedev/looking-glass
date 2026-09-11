@@ -295,8 +295,8 @@ export class DemoScene {
     const axes = new THREE.AxesHelper(0.15);
     this.group.add(axes);
 
-    // 1. 3D Wireframe Bounding Box around the scene (from Z = 0 to Z = -0.85m)
-    const maxDepth = 0.85;
+    // 1. 3D Wireframe Bounding Box around the scene (from Z = 0 to Z = -0.45m)
+    const maxDepth = 0.45;
     const boxGeo = new THREE.BoxGeometry(W, H, maxDepth);
     const edgesGeo = new THREE.EdgesGeometry(boxGeo);
     const boxMat = new THREE.LineBasicMaterial({
@@ -308,8 +308,32 @@ export class DemoScene {
     wireBox.position.set(0, 0, -maxDepth / 2);
     this.group.add(wireBox);
 
-    // 2. Metric depth spheres and wireframe ribs along the tunnel (at z = -0.2m, -0.4m, -0.6m, -0.8m)
-    const depths = [0.2, 0.4, 0.6, 0.8];
+    // Bounded floor grid lines (spanning from Z = 0 to Z = -maxDepth at y = -H/2)
+    const floorLinePositions: number[] = [];
+    const xDivisions = 10;
+    for (let i = 0; i <= xDivisions; i++) {
+      const x = -W / 2 + (i / xDivisions) * W;
+      floorLinePositions.push(x, -H / 2, 0);
+      floorLinePositions.push(x, -H / 2, -maxDepth);
+    }
+    // Sub-grid lateral lines every 5 cm along Z
+    const zStep = 0.05;
+    for (let z = 0; z >= -maxDepth - 0.001; z -= zStep) {
+      floorLinePositions.push(-W / 2, -H / 2, z);
+      floorLinePositions.push(W / 2, -H / 2, z);
+    }
+    const floorGeo = new THREE.BufferGeometry();
+    floorGeo.setAttribute('position', new THREE.Float32BufferAttribute(floorLinePositions, 3));
+    const floorMat = new THREE.LineBasicMaterial({
+      color: 0x223344,
+      transparent: true,
+      opacity: 0.6
+    });
+    const floorLines = new THREE.LineSegments(floorGeo, floorMat);
+    this.group.add(floorLines);
+
+    // 2. Metric depth spheres and wireframe ribs along the tunnel (at z = -0.1m, -0.2m, -0.3m, -0.4m)
+    const depths = [0.1, 0.2, 0.3, 0.4];
     const colors = [0x00ff88, 0x00e5ff, 0xffb703, 0xff00aa];
 
     // Front baseline label at 0 cm along bottom center line
@@ -324,11 +348,6 @@ export class DemoScene {
       const s = new THREE.Mesh(sGeo, sMat);
       s.position.set(0, 0, -d);
       this.group.add(s);
-
-      // Depth grid floor
-      const grid = new THREE.GridHelper(W, 10, colors[idx], 0x334455);
-      grid.position.set(0, -H / 2, -d);
-      this.group.add(grid);
 
       // Wireframe cross-section rib around the box at this depth
       const ribPositions = [
