@@ -41,7 +41,17 @@ export class Fish {
   // Custom model components
   private customModelRoot: THREE.Group | null = null;
   private animationMixer: THREE.AnimationMixer | null = null;
-  private forwardVector: THREE.Vector3 = new THREE.Vector3(1, 0, 0);
+
+  // Static reusable math objects for strictly upright orientation calculation
+  private static readonly WORLD_UP: THREE.Vector3 = new THREE.Vector3(0, 1, 0);
+  private static readonly MAX_PITCH_RAD: number = (25 * Math.PI) / 180; // +/- 25 degrees max pitch
+  private static readonly basisMatrix: THREE.Matrix4 = new THREE.Matrix4();
+  private static readonly targetQuat: THREE.Quaternion = new THREE.Quaternion();
+  private static readonly tempVecX: THREE.Vector3 = new THREE.Vector3();
+  private static readonly tempVecY: THREE.Vector3 = new THREE.Vector3();
+  private static readonly tempVecZ: THREE.Vector3 = new THREE.Vector3();
+
+  private lastHeading: THREE.Vector3 = new THREE.Vector3(1, 0, 0);
 
   // Animation components
   private tailPivot: THREE.Group;
@@ -71,13 +81,23 @@ export class Fish {
     if (config.customModelRoot) {
       this.customModelRoot = config.customModelRoot;
       this.animationMixer = config.animationMixer ?? null;
-      this.forwardVector = config.forwardVector ?? new THREE.Vector3(1, 0, 0);
       this.group.add(this.customModelRoot);
     } else {
       this.buildMesh(config.scale);
     }
 
     this.group.position.copy(this.position);
+
+    // Initialize orientation strictly upright along initial heading
+    const sxz = Math.hypot(this.velocity.x, this.velocity.z);
+    if (sxz > 0.0001) {
+      this.lastHeading.set(this.velocity.x / sxz, 0, this.velocity.z / sxz);
+      Fish.tempVecX.copy(this.lastHeading);
+      Fish.tempVecZ.crossVectors(Fish.tempVecX, Fish.WORLD_UP).normalize();
+      Fish.tempVecY.crossVectors(Fish.tempVecZ, Fish.tempVecX).normalize();
+      Fish.basisMatrix.makeBasis(Fish.tempVecX, Fish.tempVecY, Fish.tempVecZ);
+      this.group.quaternion.setFromRotationMatrix(Fish.basisMatrix);
+    }
   }
 
   private buildMesh(scale: number): void {
@@ -294,6 +314,10 @@ export class Fish {
   }
 
   public update(deltaTime: number, timeSeconds: number): void {
+    // Limit vertical component of physical velocity so fish swim predominantly horizontally
+    const maxVerticalSpeed = this.maxSpeed * Math.sin(Fish.MAX_PITCH_RAD);
+    this.velocity.y = THREE.MathUtils.clamp(this.velocity.y, -maxVerticalSpeed, maxVerticalSpeed);
+
     // Integrate physics
     this.velocity.addScaledVector(this.acceleration, deltaTime);
     this.velocity.clampLength(0.02, this.maxSpeed);
@@ -303,31 +327,46 @@ export class Fish {
     // Position mesh group
     this.group.position.copy(this.position);
 
-    // Orient mesh smoothly along velocity vector
-    if (this.velocity.lengthSq() > 0.0001) {
-      const forward = this.velocity.clone().normalize();
-      const targetQuat = new THREE.Quaternion().setFromUnitVectors(
-        this.forwardVector,
-        forward
-      );
-      this.group.quaternion.slerp(targetQuat, Math.min(1.0, deltaTime * 8.0));
+    // Orient mesh: strictly upright (roll = 0) with pitch limited to +/- 25 degrees
+    const speedSq = this.velocity.lengthSq();
+    if (speedSq > 0.0001) {
+      const sxz = Math.hypot(this.velocity.x, this.velocity.z);
+      if (sxz > 0.0001) {
+        this.lastHeading.set(this.velocity.x / sxz, 0, this.velocity.z / sxz);
+      }
+
+      const pitch = Math.atan2(this.velocity.y, Math.max(0.0001, sxz));
+      const clampedPitch = THREE.MathUtils.clamp(pitch, -Fish.MAX_PITCH_RAD, Fish.MAX_PITCH_RAD);
+
+      const cosP = Math.cos(clampedPitch);
+      const sinP = Math.sin(clampedPitch);
+
+      // Forward vector (+X of fish model)
+      Fish.tempVecX
+        .copy(this.lastHeading)
+        .multiplyScalar(cosP)
+        .addScaledVector(Fish.WORLD_UP, sinP)
+        .normalize();
+
+      // Left vector (+Z of fish model, strictly horizontal so roll = 0)
+      Fish.tempVecZ.crossVectors(Fish.tempVecX, Fish.WORLD_UP).normalize();
+
+      // Up vector (+Y of fish model, points upward)
+      Fish.tempVecY.crossVectors(Fish.tempVecZ, Fish.tempVecX).normalize();
+
+      Fish.basisMatrix.makeBasis(Fish.tempVecX, Fish.tempVecY, Fish.tempVecZ);
+      Fish.targetQuat.setFromRotationMatrix(Fish.basisMatrix);
+
+      // Smooth orientation slerp
+      this.group.quaternion.slerp(Fish.targetQuat, Math.min(1.0, deltaTime * 6.0));
     }
 
     const currentSpeed = this.velocity.length();
     const speedRatio = currentSpeed / this.maxSpeed;
 
-    // Update skeletal animations if custom GLTF model has an animation mixer
-    if (this.animationMixer) {
-      // Speed up animation playback when fish swims faster!
-      const playSpeed = Math.max(0.6, speedRatio * 1.6);
-      this.animationMixer.update(deltaTime * playSpeed);
-    } else if (this.customModelRoot) {
-      // For static custom meshes without bones, add a subtle lifelike body yaw wiggle
-      const wagFreq = this.animFrequency * (0.8 + speedRatio * 1.5);
-      const wagAngle = Math.sin(timeSeconds * wagFreq + this.animPhase) * (0.12 + speedRatio * 0.1);
-      this.customModelRoot.rotation.y = wagAngle;
-    } else {
-      // Dynamic swimming animation for procedural fish: tail wags faster when moving faster
+    // Dynamic swimming animation for procedural fish (tail wags, pectoral fins flutter)
+    // Custom imported models do NOT have body wiggle applied to prevent jitter
+    if (!this.customModelRoot) {
       const wagFreq = this.animFrequency * (0.8 + speedRatio * 1.5);
       const wagAngle = Math.sin(timeSeconds * wagFreq + this.animPhase) * (0.35 + speedRatio * 0.3);
       this.tailPivot.rotation.y = wagAngle;

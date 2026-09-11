@@ -86,7 +86,8 @@ export class CustomModelLoader {
     const scaleFactor = targetLength / maxDim;
     clonedScene.scale.setScalar(scaleFactor);
 
-    // Center pivot point to center of bounding box
+    // Center pivot point to center of bounding box inside innerGroup
+    const innerGroup = new THREE.Group();
     const center = new THREE.Vector3();
     bbox.getCenter(center);
     clonedScene.position.set(
@@ -94,10 +95,27 @@ export class CustomModelLoader {
       -center.y * scaleFactor,
       -center.z * scaleFactor
     );
+    innerGroup.add(clonedScene);
 
-    // Wrap in an outer orientation group so alignment rotations don't conflict
+    // Rotate innerGroup around its center so model's head points along +X and top along +Y
+    switch (forwardAxis) {
+      case '+X':
+        innerGroup.rotation.y = 0;
+        break;
+      case '-X':
+        innerGroup.rotation.y = Math.PI;
+        break;
+      case '+Z':
+        innerGroup.rotation.y = Math.PI / 2;
+        break;
+      case '-Z':
+        innerGroup.rotation.y = -Math.PI / 2;
+        break;
+    }
+
+    // Wrap in an outer orientation group
     const wrapperGroup = new THREE.Group();
-    wrapperGroup.add(clonedScene);
+    wrapperGroup.add(innerGroup);
 
     // Enable shadows and two-sided rendering on all child meshes
     clonedScene.traverse((child) => {
@@ -115,41 +133,11 @@ export class CustomModelLoader {
       }
     });
 
-    // 3. Animation Mixer (if model has rigged skeletal animations)
-    let mixer: THREE.AnimationMixer | null = null;
-    if (template.animations && template.animations.length > 0) {
-      mixer = new THREE.AnimationMixer(clonedScene);
-      // Look for a swim/swimming/idle clip, or fallback to first clip
-      const swimClip =
-        template.animations.find((a) => /swim/i.test(a.name)) ??
-        template.animations.find((a) => /walk|move|run|fly/i.test(a.name)) ??
-        template.animations[0];
-
-      const action = mixer.clipAction(swimClip);
-      action.play();
-    }
-
-    // Determine forward vector based on chosen forward axis
-    let forwardVector = new THREE.Vector3(1, 0, 0); // +X default
-    switch (forwardAxis) {
-      case '+X':
-        forwardVector = new THREE.Vector3(1, 0, 0);
-        break;
-      case '-X':
-        forwardVector = new THREE.Vector3(-1, 0, 0);
-        break;
-      case '+Z':
-        forwardVector = new THREE.Vector3(0, 0, 1);
-        break;
-      case '-Z':
-        forwardVector = new THREE.Vector3(0, 0, -1);
-        break;
-    }
-
+    // Custom models have their forward axis normalized to +X and no jittering animation applied
     return {
       root: wrapperGroup,
-      mixer,
-      forwardVector
+      mixer: null,
+      forwardVector: new THREE.Vector3(1, 0, 0)
     };
   }
 
