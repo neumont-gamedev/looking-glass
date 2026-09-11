@@ -117,11 +117,16 @@ export class SceneManager {
       this.accentLight1.intensity = 0;
       this.accentLight2.intensity = 0;
 
-      // Directional light rotated along Z axis so light streams down at an angle
+      // Directional light rotated along Z axis an additional 20 degrees (~39 deg from vertical)
+      const lightDistance = 0.95;
+      const angleRad = (39 * Math.PI) / 180;
+      const lightX = -Math.sin(angleRad) * lightDistance;
+      const lightY = Math.cos(angleRad) * lightDistance;
+
       this.dirLight.color.setHex(0xffffff);
       this.dirLight.intensity = 2.0;
-      this.dirLight.position.set(-screen.width * 0.45, screen.height / 2 + 0.55, -0.425);
-      this.dirLight.target.position.set(0, -screen.height / 2, -0.425);
+      this.dirLight.position.set(lightX, lightY, -0.425);
+      this.dirLight.target.position.set(0, 0, -0.425);
 
       this.demoScene.setSceneType(type, screen);
       this.scene.add(this.demoScene.group);
