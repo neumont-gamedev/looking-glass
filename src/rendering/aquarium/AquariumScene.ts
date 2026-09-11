@@ -186,10 +186,13 @@ export class AquariumScene {
     // 4. Underwater Coral & Rock Formations (Multi-depth)
     this.buildRocks(W, H, D);
 
-    // 5. Swaying Kelp / Seaweed Stems
+    // 5. Sunken Driftwood Log (models/log.glb)
+    this.buildLog(W, H, D);
+
+    // 6. Swaying Kelp / Seaweed Stems
     this.buildSeaweed(W, H, D);
 
-    // 6. Micro-bubbles Particle System
+    // 7. Micro-bubbles Particle System
     this.buildBubbles(W, H, D);
 
     // 7. Sunlight Shaft & Caustic Accent Light
@@ -262,6 +265,23 @@ export class AquariumScene {
     arch.rotation.z = Math.PI;
     arch.receiveShadow = true;
     this.group.add(arch);
+  }
+
+  private buildLog(W: number, H: number, _D: number): void {
+    this.customModelLoader
+      .loadGLTF('/models/log.glb')
+      .then((template) => {
+        const logGroup = this.customModelLoader.instantiateDecoration(template, {
+          targetScale: 0.22, // ~22cm long sunken driftwood log
+          position: new THREE.Vector3(W * 0.04, -H / 2, -0.48),
+          rotation: new THREE.Euler(0, 0.45, 0)
+        });
+        this.customDecorations.push(logGroup);
+        this.group.add(logGroup);
+      })
+      .catch((err) => {
+        console.warn('[AquariumScene] log.glb load error:', err);
+      });
   }
 
   private buildSeaweed(W: number, H: number, D: number): void {
@@ -357,10 +377,42 @@ export class AquariumScene {
       spawn(FishSpecies.Clownfish, 1.0, 0.14, 0.35);
     }
 
-    // 2. Pair of Blue Tangs (4 fish)
-    for (let i = 0; i < 4; i++) {
-      spawn(FishSpecies.BlueTang, 1.15, 0.16, 0.4);
-    }
+    // 2. Custom 3D Fish Species 2 (models/fish02.glb - 4 fish)
+    this.customModelLoader
+      .loadGLTF('/models/fish02.glb')
+      .then((template) => {
+        for (let i = 0; i < 4; i++) {
+          const instantiated = this.customModelLoader.instantiateFish(template, {
+            targetLength: 0.058, // ~5.8cm length
+            forwardAxis: '-X' // fish02.glb head points along -X
+          });
+          const pos = new THREE.Vector3(
+            (Math.random() - 0.5) * (W * 0.75),
+            (Math.random() - 0.5) * (H * 0.65),
+            -0.18 - Math.random() * (D * 0.65)
+          );
+          const fish = new Fish(
+            {
+              species: FishSpecies.Custom,
+              scale: 1.0,
+              maxSpeed: 0.16,
+              maxForce: 0.40,
+              customModelRoot: instantiated.root,
+              animationMixer: instantiated.mixer,
+              forwardVector: instantiated.forwardVector
+            },
+            pos
+          );
+          this.boids.addFish(fish);
+          this.group.add(fish.group);
+        }
+      })
+      .catch((err) => {
+        console.warn('[AquariumScene] fish02.glb load fallback:', err);
+        for (let i = 0; i < 4; i++) {
+          spawn(FishSpecies.BlueTang, 1.15, 0.16, 0.4);
+        }
+      });
 
     // 3. Custom 3D Fish (models/fish01.glb - 4 fish)
     this.customModelLoader

@@ -189,8 +189,16 @@ export class CustomModelLoader {
 
     clonedScene.traverse((child) => {
       if ((child as THREE.Mesh).isMesh) {
-        child.castShadow = true;
-        child.receiveShadow = true;
+        const mesh = child as THREE.Mesh;
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        if (mesh.material) {
+          if (Array.isArray(mesh.material)) {
+            mesh.material.forEach((m) => (m.side = THREE.DoubleSide));
+          } else {
+            mesh.material.side = THREE.DoubleSide;
+          }
+        }
       }
     });
 
