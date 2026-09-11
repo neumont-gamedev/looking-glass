@@ -14,6 +14,7 @@ import { BoidsSimulation } from './BoidsSimulation';
 import { Fish, FishSpecies } from './Fish';
 import { AquariumInteractions } from './AquariumInteractions';
 import { CustomModelLoader, CustomFishOptions, CustomDecorationOptions } from './CustomModelLoader';
+import { CausticEffect } from './CausticEffect';
 
 interface SeaweedStem {
   mesh: THREE.Mesh;
@@ -26,6 +27,7 @@ export class AquariumScene {
   public readonly group: THREE.Group = new THREE.Group();
   public readonly boids: BoidsSimulation;
   public readonly interactions: AquariumInteractions;
+  public readonly causticEffect: CausticEffect;
   public readonly customModelLoader: CustomModelLoader = new CustomModelLoader();
 
   private screen: ScreenGeometry;
@@ -42,8 +44,10 @@ export class AquariumScene {
     this.screen = screen;
     this.boids = new BoidsSimulation(screen, this.depth);
     this.interactions = new AquariumInteractions(this.boids, screen);
+    this.causticEffect = new CausticEffect(screen, this.depth);
 
     this.group.add(this.interactions.group);
+    this.group.add(this.causticEffect.group);
 
     this.buildEnvironment();
     this.populateFish();
@@ -53,6 +57,7 @@ export class AquariumScene {
     this.screen = screen;
     this.boids.screen = screen;
     this.interactions.setScreenGeometry(screen);
+    this.causticEffect.rebuild(screen, this.depth);
 
     this.clear();
     this.buildEnvironment();
@@ -105,6 +110,7 @@ export class AquariumScene {
     }
 
     this.group.add(this.interactions.group);
+    this.group.add(this.causticEffect.group);
   }
 
   private buildEnvironment(): void {
@@ -490,7 +496,10 @@ export class AquariumScene {
     // 4. Update interactions (shockwaves & sinking food pellets)
     this.interactions.update(deltaTimeSeconds, timeSeconds);
 
-    // 5. Update Boids Flocking Simulation
+    // 5. Update dynamic caustic water effect (sun shafts, seabed caustics, ceiling)
+    this.causticEffect.update(timeSeconds);
+
+    // 6. Update Boids Flocking Simulation
     this.boids.update(deltaTimeSeconds, timeSeconds, this.interactions.foodPellets);
   }
 
