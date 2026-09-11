@@ -84,6 +84,9 @@ export class Controls {
   private debugPoseXEl: HTMLElement | null = null;
   private debugPoseYEl: HTMLElement | null = null;
   private debugPoseZEl: HTMLElement | null = null;
+  private debugHudBoxEl: HTMLElement | null = null;
+  private feedFishBtn: HTMLElement | null = null;
+  private isDebugHudVisible: boolean = true;
 
   private buildTopBar(): void {
     this.topBar.innerHTML = `
@@ -136,6 +139,8 @@ export class Controls {
     this.debugPoseXEl = this.topBar.querySelector('#debug-pose-x');
     this.debugPoseYEl = this.topBar.querySelector('#debug-pose-y');
     this.debugPoseZEl = this.topBar.querySelector('#debug-pose-z');
+    this.debugHudBoxEl = this.topBar.querySelector('#debug-hud-box');
+    this.feedFishBtn = this.topBar.querySelector('#btn-feed-fish');
 
     this.topBar.querySelector('#btn-feed-fish')?.addEventListener('click', () => {
       if (this.callbacks.onFeedFish) this.callbacks.onFeedFish();
@@ -156,6 +161,57 @@ export class Controls {
         document.exitFullscreen().catch((err) => console.warn(err));
       }
     });
+  }
+
+  public toggleDebugHud(): boolean {
+    this.isDebugHudVisible = !this.isDebugHudVisible;
+    if (this.debugHudBoxEl) {
+      this.debugHudBoxEl.style.display = this.isDebugHudVisible ? 'flex' : 'none';
+    }
+    return this.isDebugHudVisible;
+  }
+
+  public setDebugHudVisible(visible: boolean): void {
+    this.isDebugHudVisible = visible;
+    if (this.debugHudBoxEl) {
+      this.debugHudBoxEl.style.display = this.isDebugHudVisible ? 'flex' : 'none';
+    }
+  }
+
+  public getIsDebugHudVisible(): boolean {
+    return this.isDebugHudVisible;
+  }
+
+  public isSettingsOpen(): boolean {
+    return this.isDrawerOpen;
+  }
+
+  public openDrawer(): void {
+    this.isDrawerOpen = true;
+    this.settingsDrawer.style.display = 'block';
+  }
+
+  public closeDrawer(): void {
+    this.isDrawerOpen = false;
+    this.settingsDrawer.style.display = 'none';
+  }
+
+  public toggleDrawer(): void {
+    if (this.isDrawerOpen) {
+      this.closeDrawer();
+    } else {
+      this.openDrawer();
+    }
+  }
+
+  public setScene(sceneType: SceneType): void {
+    if (this.feedFishBtn) {
+      this.feedFishBtn.style.display = sceneType === SceneType.Aquarium ? '' : 'none';
+    }
+    const sceneSelect = this.settingsDrawer.querySelector('#scene-select') as HTMLSelectElement;
+    if (sceneSelect && sceneSelect.value !== sceneType) {
+      sceneSelect.value = sceneType;
+    }
   }
 
   public updateDebugHud(data: {
@@ -212,10 +268,6 @@ export class Controls {
     }
   }
 
-  private toggleDrawer(): void {
-    this.isDrawerOpen = !this.isDrawerOpen;
-    this.settingsDrawer.style.display = this.isDrawerOpen ? 'block' : 'none';
-  }
 
   private buildDrawer(): void {
     this.settingsDrawer.innerHTML = `
@@ -381,7 +433,7 @@ export class Controls {
     `;
 
     this.settingsDrawer.querySelector('#drawer-close-btn')?.addEventListener('click', () => {
-      this.toggleDrawer();
+      this.closeDrawer();
     });
 
     // Input mode change
@@ -425,6 +477,7 @@ export class Controls {
     const sceneSelect = this.settingsDrawer.querySelector('#scene-select') as HTMLSelectElement;
     sceneSelect?.addEventListener('change', (e) => {
       const type = (e.target as HTMLSelectElement).value as SceneType;
+      this.setScene(type);
       this.callbacks.onSceneChange(type);
     });
 
@@ -561,6 +614,9 @@ export class Controls {
     pipToggle?.addEventListener('change', (e) => {
       this.debugView.setVisible((e.target as HTMLInputElement).checked);
     });
+
+    // Initialize scene-dependent UI elements (default is Aquarium)
+    this.setScene(SceneType.Aquarium);
   }
 
   public setCameraActiveState(active: boolean): void {

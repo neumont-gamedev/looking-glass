@@ -99,6 +99,7 @@ export class LookingGlassApp {
           if (this.sceneManager.getCurrentSceneType() !== SceneType.Aquarium) {
             const screen = this.calibrationManager.getScreenGeometry();
             this.sceneManager.setSceneType(SceneType.Aquarium, screen);
+            this.controls.setScene(SceneType.Aquarium);
           }
           return await this.sceneManager.aquariumScene.addCustomFish(source, count, options);
         }
@@ -184,6 +185,25 @@ export class LookingGlassApp {
   };
 
   private onKeyDown = (e: KeyboardEvent): void => {
+    // 1. Toggle debug HUD window with ~ or `
+    if (e.key === '`' || e.key === '~' || e.code === 'Backquote') {
+      e.preventDefault();
+      this.controls.toggleDebugHud();
+      return;
+    }
+
+    // 2. Escape key closes Calibrate or Settings window
+    if (e.key === 'Escape' || e.code === 'Escape') {
+      if (this.calibrationPanel.getIsOpen()) {
+        this.calibrationPanel.close();
+        return;
+      } else if (this.controls.isSettingsOpen()) {
+        this.controls.closeDrawer();
+        return;
+      }
+    }
+
+    // 3. 'F' key feeds fish when in Aquarium scene
     if (e.key === 'f' || e.key === 'F') {
       this.handleFeedFish();
     }
@@ -284,6 +304,7 @@ export class LookingGlassApp {
   private handleSceneChange(sceneType: SceneType): void {
     const screen = this.calibrationManager.getScreenGeometry();
     this.sceneManager.setSceneType(sceneType, screen);
+    this.controls.setScene(sceneType);
   }
 
   /**

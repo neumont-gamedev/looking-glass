@@ -75,20 +75,31 @@ export class CalibrationPanel {
     this.stopBiometricPolling();
   }
 
-  public toggle(): void {
-    if (this.isOpen) this.close();
-    else this.open();
+  public getIsOpen(): boolean {
+    return this.isOpen;
   }
 
   private handleKeyDown = (e: KeyboardEvent): void => {
+    if (e.key === 'Escape' || e.code === 'Escape') {
+      if (this.isWireframeActive) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        this.exitWireframeAlignment();
+        return;
+      }
+      if (this.isOpen) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        this.close();
+        return;
+      }
+    }
+
     if (!this.isWireframeActive) return;
 
     if (e.code === 'Space') {
       e.preventDefault();
       this.lockWireframeAlignment();
-    } else if (e.code === 'Escape') {
-      e.preventDefault();
-      this.exitWireframeAlignment();
     }
   };
 
