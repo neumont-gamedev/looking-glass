@@ -393,53 +393,36 @@ export class DemoScene {
   }
 
   /**
-   * Creates a crisp billboard text sprite with white characters on a black background.
+   * Creates a crisp billboard text sprite hovering in the air without surrounding boxes.
    */
-  private createLabelSprite(text: string, colorHex: number): THREE.Sprite {
+  private createLabelSprite(text: string, _colorHex: number): THREE.Sprite {
     const canvas = document.createElement('canvas');
     canvas.width = 512;
     canvas.height = 128;
     const ctx = canvas.getContext('2d');
     if (!ctx) return new THREE.Sprite();
 
-    const hexStr = '#' + colorHex.toString(16).padStart(6, '0');
+    // Clear canvas to ensure completely transparent background (no surrounding box)
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Background rounded rectangle (crisp solid black with thin colored border)
-    const x = 6;
-    const y = 6;
-    const w = canvas.width - 12;
-    const h = canvas.height - 12;
-    const r = 16;
-
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.lineTo(x + w - r, y);
-    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-    ctx.lineTo(x + w, y + h - r);
-    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-    ctx.lineTo(x + r, y + h);
-    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-    ctx.lineTo(x, y + r);
-    ctx.quadraticCurveTo(x, y, x + r, y);
-    ctx.closePath();
-
-    ctx.fillStyle = '#000000';
-    ctx.fill();
-    ctx.strokeStyle = hexStr;
-    ctx.lineWidth = 4;
-    ctx.stroke();
-
-    // Render Text (crisp pure white characters, zero blur or glow)
+    // Render Text (crisp pure white characters hovering directly in the air)
     ctx.shadowBlur = 0;
-    let fontSize = 38;
+    let fontSize = 44;
     ctx.font = `bold ${fontSize}px "SF Mono", "Consolas", "Courier New", monospace`;
-    while (ctx.measureText(text).width > w - 32 && fontSize > 16) {
+    while (ctx.measureText(text).width > canvas.width - 32 && fontSize > 16) {
       fontSize -= 2;
       ctx.font = `bold ${fontSize}px "SF Mono", "Consolas", "Courier New", monospace`;
     }
 
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+
+    // Thin dark outline for crisp contrast against any scene lighting/floor lines
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)';
+    ctx.lineWidth = 6;
+    ctx.lineJoin = 'round';
+    ctx.strokeText(text, canvas.width / 2, canvas.height / 2);
+
     ctx.fillStyle = '#ffffff';
     ctx.fillText(text, canvas.width / 2, canvas.height / 2);
 
@@ -454,8 +437,8 @@ export class DemoScene {
       depthTest: true
     });
     const sprite = new THREE.Sprite(spriteMat);
-    // Compact, unobtrusive scale: ~6.5cm wide by 1.6cm tall
-    sprite.scale.set(0.065, 0.01625, 1.0);
+    // Half size: was (0.065, 0.01625) -> now (0.0325, 0.008125) (~3.25cm wide by 0.81cm tall)
+    sprite.scale.set(0.0325, 0.008125, 1.0);
     return sprite;
   }
 
