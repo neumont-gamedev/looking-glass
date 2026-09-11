@@ -95,15 +95,19 @@ export class SceneManager {
       this.accentLight1.intensity = 0;
       this.accentLight2.intensity = 0;
 
+      // Directional sunlight shines straight down from directly above the aquarium center
       const lightDistance = 0.95;
-      const angleRad = (39 * Math.PI) / 180;
-      const lightX = -Math.sin(angleRad) * lightDistance;
-      const lightY = Math.cos(angleRad) * lightDistance;
-
       this.dirLight.color.setHex(0xffffff);
       this.dirLight.intensity = 2.0;
-      this.dirLight.position.set(lightX, lightY, -0.425);
+      this.dirLight.position.set(0, lightDistance, -0.425);
       this.dirLight.target.position.set(0, 0, -0.425);
+
+      // Expand shadow frustum so soft shadows cover the entire box
+      this.dirLight.shadow.camera.left = -screen.width * 0.6;
+      this.dirLight.shadow.camera.right = screen.width * 0.6;
+      this.dirLight.shadow.camera.top = 0.55;
+      this.dirLight.shadow.camera.bottom = -0.55;
+      this.dirLight.shadow.camera.updateProjectionMatrix();
 
       this.scene.add(this.aquariumScene.group);
     } else if (type === SceneType.Debug) {
