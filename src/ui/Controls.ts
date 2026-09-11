@@ -93,7 +93,6 @@ export class Controls {
       <div class="topbar-left">
         <div class="logo-group">
           <h1 class="app-title">LOOKING GLASS</h1>
-          <span class="app-tagline">A head-tracked window into 3D space</span>
         </div>
         <div class="debug-hud-box" id="debug-hud-box">
           <div class="debug-hud-row">
