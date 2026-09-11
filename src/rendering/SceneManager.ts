@@ -41,6 +41,7 @@ export class SceneManager {
     this.dirLight.shadow.camera.far = 2.0;
     this.dirLight.shadow.bias = -0.0005;
     this.scene.add(this.dirLight);
+    this.scene.add(this.dirLight.target);
 
     // Subtle colored interior rim lights
     this.accentLight1 = new THREE.PointLight(0x00d4ff, 1.2, 1.5);
@@ -94,6 +95,8 @@ export class SceneManager {
       // Crisp sunlight shafts piercing the water surface
       this.dirLight.color.setHex(0xc5efff);
       this.dirLight.intensity = 1.8;
+      this.dirLight.position.set(0.1, 0.7, 0.2);
+      this.dirLight.target.position.set(0, 0, -0.4);
 
       // Front and lateral fill lights
       this.accentLight1.color.setHex(0x00e5ff);
@@ -102,8 +105,25 @@ export class SceneManager {
       this.accentLight2.intensity = 1.0;
 
       this.scene.add(this.aquariumScene.group);
+    } else if (type === SceneType.Debug) {
+      // Clear underwater fog for debug calibration
+      this.scene.background = new THREE.Color(0x0a0c10);
+      this.scene.fog = null;
+
+      // Exactly ONE light in the scene, placed directly above the scene
+      this.ambientLight.intensity = 0;
+      this.accentLight1.intensity = 0;
+      this.accentLight2.intensity = 0;
+
+      this.dirLight.color.setHex(0xffffff);
+      this.dirLight.intensity = 2.2;
+      this.dirLight.position.set(0, screen.height / 2 + 0.6, -0.425);
+      this.dirLight.target.position.set(0, -screen.height / 2, -0.425);
+
+      this.demoScene.setSceneType(type, screen);
+      this.scene.add(this.demoScene.group);
     } else {
-      // Clear underwater fog for diorama/debug
+      // Diorama
       this.scene.background = new THREE.Color(0x0a0c10);
       this.scene.fog = null;
 
@@ -112,9 +132,13 @@ export class SceneManager {
 
       this.dirLight.color.setHex(0xfff5e6);
       this.dirLight.intensity = 1.4;
+      this.dirLight.position.set(0.1, 0.7, 0.2);
+      this.dirLight.target.position.set(0, 0, -0.4);
 
       this.accentLight1.color.setHex(0x00d4ff);
+      this.accentLight1.intensity = 1.2;
       this.accentLight2.color.setHex(0xff0077);
+      this.accentLight2.intensity = 0.9;
 
       this.demoScene.setSceneType(type, screen);
       this.scene.add(this.demoScene.group);

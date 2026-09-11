@@ -312,6 +312,11 @@ export class DemoScene {
     const depths = [0.2, 0.4, 0.6, 0.8];
     const colors = [0x00ff88, 0x00e5ff, 0xffb703, 0xff00aa];
 
+    // Front baseline label at 0 cm along bottom center line
+    const frontLabel = this.createLabelSprite('Z: 0 cm (0.0 in)', 0xffffff);
+    frontLabel.position.set(0, -H / 2 + 0.012, 0);
+    this.group.add(frontLabel);
+
     depths.forEach((d, idx) => {
       // Metric depth sphere along center line
       const sGeo = new THREE.SphereGeometry(0.02, 16, 16);
