@@ -36,7 +36,6 @@ export class AquariumScene {
   private bubbleVelocities: Float32Array | null = null;
   private bubbleCount: number = 180;
   private seaweedStems: SeaweedStem[] = [];
-  private causticLight: THREE.SpotLight | null = null;
   private customDecorations: THREE.Group[] = [];
 
   constructor(screen: ScreenGeometry) {
@@ -194,13 +193,6 @@ export class AquariumScene {
 
     // 7. Micro-bubbles Particle System
     this.buildBubbles(W, H, D);
-
-    // 7. Sunlight Shaft & Caustic Accent Light
-    this.causticLight = new THREE.SpotLight(0x00ffff, 2.5, D * 1.5, Math.PI / 3, 0.4, 1.2);
-    this.causticLight.position.set(0, H / 2 + 0.1, -D / 2);
-    this.causticLight.target.position.set(0, -H / 2, -D / 2);
-    this.group.add(this.causticLight);
-    this.group.add(this.causticLight.target);
   }
 
   private buildRocks(W: number, H: number, _D: number): void {
@@ -493,12 +485,6 @@ export class AquariumScene {
         posAttr.setY(i, y);
       }
       posAttr.needsUpdate = true;
-    }
-
-    // 3. Update Caustic spotlight motion
-    if (this.causticLight) {
-      this.causticLight.position.x = Math.sin(timeSeconds * 0.8) * (this.screen.width * 0.25);
-      this.causticLight.position.z = -this.depth / 2 + Math.cos(timeSeconds * 0.6) * 0.15;
     }
 
     // 4. Update interactions (shockwaves & sinking food pellets)

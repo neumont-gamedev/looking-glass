@@ -88,21 +88,22 @@ export class SceneManager {
       this.scene.background = new THREE.Color(0x021226);
       this.scene.fog = new THREE.FogExp2(0x03182a, 0.75);
 
-      // Balanced ambient light to illuminate warm orange and yellow pigments
-      this.ambientLight.color.setHex(0x406888);
-      this.ambientLight.intensity = 1.1;
+      // Replicated lighting from debug scene: small amount of ambient and angled directional light
+      this.ambientLight.color.setHex(0xffffff);
+      this.ambientLight.intensity = 0.25;
 
-      // Crisp sunlight shafts piercing the water surface
-      this.dirLight.color.setHex(0xc5efff);
-      this.dirLight.intensity = 1.8;
-      this.dirLight.position.set(0.1, 0.7, 0.2);
-      this.dirLight.target.position.set(0, 0, -0.4);
+      this.accentLight1.intensity = 0;
+      this.accentLight2.intensity = 0;
 
-      // Front and lateral fill lights
-      this.accentLight1.color.setHex(0x00e5ff);
-      this.accentLight1.intensity = 1.3;
-      this.accentLight2.color.setHex(0xffaa55);
-      this.accentLight2.intensity = 1.0;
+      const lightDistance = 0.95;
+      const angleRad = (39 * Math.PI) / 180;
+      const lightX = -Math.sin(angleRad) * lightDistance;
+      const lightY = Math.cos(angleRad) * lightDistance;
+
+      this.dirLight.color.setHex(0xffffff);
+      this.dirLight.intensity = 2.0;
+      this.dirLight.position.set(lightX, lightY, -0.425);
+      this.dirLight.target.position.set(0, 0, -0.425);
 
       this.scene.add(this.aquariumScene.group);
     } else if (type === SceneType.Debug) {
