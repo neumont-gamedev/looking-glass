@@ -110,14 +110,17 @@ export class SceneManager {
       this.scene.background = new THREE.Color(0x0a0c10);
       this.scene.fog = null;
 
-      // Exactly ONE light in the scene, placed directly above the scene
-      this.ambientLight.intensity = 0;
+      // Soft ambient fill light turned up a little
+      this.ambientLight.color.setHex(0xffffff);
+      this.ambientLight.intensity = 0.25;
+
       this.accentLight1.intensity = 0;
       this.accentLight2.intensity = 0;
 
+      // Directional light rotated along Z axis so light streams down at an angle
       this.dirLight.color.setHex(0xffffff);
-      this.dirLight.intensity = 2.2;
-      this.dirLight.position.set(0, screen.height / 2 + 0.6, -0.425);
+      this.dirLight.intensity = 2.0;
+      this.dirLight.position.set(-screen.width * 0.45, screen.height / 2 + 0.55, -0.425);
       this.dirLight.target.position.set(0, -screen.height / 2, -0.425);
 
       this.demoScene.setSceneType(type, screen);
