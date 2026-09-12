@@ -151,3 +151,4 @@ export class SettingsManager {
     return s;
   }
 }
+

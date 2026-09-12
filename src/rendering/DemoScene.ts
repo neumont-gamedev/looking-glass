@@ -431,37 +431,37 @@ export class DemoScene {
     // ------------------------------------------------------------------
     const sphereConfigs = [
       {
-        x: -W * 0.25,
-        y:  H * 0.22,
-        z: -0.10,
+        x: -W * 0.14,
+        y:  H * 0.14,
+        z:  0.08, // +8 cm in front of screen (pops out towards viewer)
         color: 0x00f0ff, // Electric Cyan
         radius: 0.020
       },
       {
-        x:  W * 0.28,
-        y: -H * 0.18,
-        z: -0.18,
+        x:  W * 0.15,
+        y: -H * 0.10,
+        z:  0.03, // +3 cm just in front of screen
         color: 0x00ff88, // Neon Green
         radius: 0.020
       },
       {
-        x: -W * 0.10,
-        y: -H * 0.03,
-        z: -0.26,
+        x: -W * 0.24,
+        y: -H * 0.18,
+        z: -0.14, // -14 cm recessed into the room
         color: 0xffbe0b, // Amber Gold
         radius: 0.020
       },
       {
-        x:  W * 0.22,
+        x:  W * 0.24,
         y:  H * 0.20,
-        z: -0.34,
+        z: -0.27, // -27 cm midground depth
         color: 0xff00aa, // Vivid Magenta
         radius: 0.020
       },
       {
-        x: -W * 0.18,
-        y: -H * 0.20,
-        z: -0.42,
+        x: -W * 0.06,
+        y: -H * 0.02,
+        z: -0.40, // -40 cm deep near back wall
         color: 0x9d4edd, // Deep Violet
         radius: 0.020
       }
@@ -481,6 +481,7 @@ export class DemoScene {
       this.group.add(sphere);
 
       // 2. Line drawn from center of sphere going straight back through Z axis to back of scene
+      // For spheres at Z > 0, this guideline pierces directly through the physical screen at Z = 0!
       const linePoints = [
         new THREE.Vector3(config.x, config.y, config.z),
         new THREE.Vector3(config.x, config.y, -maxDepth)
@@ -495,7 +496,21 @@ export class DemoScene {
       const zGuideline = new THREE.Line(lineGeo, lineMat);
       this.group.add(zGuideline);
 
-      // 3. Target projection ring on back wall where guideline lands
+      // 3. For positive-Z spheres popping out of the screen, add a screen plane piercing indicator ring at Z = 0
+      if (config.z > 0) {
+        const pierceGeo = new THREE.RingGeometry(0.003, 0.006, 24);
+        const pierceMat = new THREE.MeshBasicMaterial({
+          color: config.color,
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: 0.75
+        });
+        const pierceRing = new THREE.Mesh(pierceGeo, pierceMat);
+        pierceRing.position.set(config.x, config.y, 0);
+        this.group.add(pierceRing);
+      }
+
+      // 4. Target projection ring on back wall where guideline lands
       const ringGeo = new THREE.RingGeometry(0.005, 0.009, 24);
       const ringMat = new THREE.MeshBasicMaterial({
         color: config.color,
@@ -507,10 +522,11 @@ export class DemoScene {
       ring.position.set(config.x, config.y, -maxDepth + 0.001);
       this.group.add(ring);
 
-      // 4. Floating depth label hovering cleanly above sphere
-      const cm = Math.round(Math.abs(config.z) * 100);
-      const inches = (Math.abs(config.z) * 39.3701).toFixed(1);
-      const labelText = `Z: -${cm} cm (${inches} in)`;
+      // 5. Floating depth label hovering cleanly above sphere
+      const sign = config.z >= 0 ? '+' : '-';
+      const absCm = Math.round(Math.abs(config.z) * 100);
+      const absInches = (Math.abs(config.z) * 39.3701).toFixed(1);
+      const labelText = `Z: ${sign}${absCm} cm (${sign}${absInches} in)`;
 
       const label = this.createLabelSprite(labelText, config.color);
       label.position.set(config.x, config.y + config.radius + 0.016, config.z);
