@@ -299,95 +299,221 @@ export class DemoScene {
   }
 
   /**
-   * Builds the Debug test environment with calibrated coordinate axes and metric depth spheres.
+   * Builds the Debug test environment with calibrated coordinate axes, amber perspective grid room,
+   * and multi-position depth spheres with lines drawn straight back through the Z axis.
    */
   private buildDebug(screen: ScreenGeometry): void {
     const W = screen.width;
     const H = screen.height;
+    const maxDepth = 0.45; // 45 cm deep behind the monitor
 
     // Coordinate axes at origin (0, 0, 0) - half length: 0.0375m (3.75cm)
     this.axes = new THREE.AxesHelper(0.0375);
     this.axes.visible = this.axesVisible;
     this.group.add(this.axes);
 
-    // 1. 3D Wireframe Bounding Box around the scene (from Z = 0 to Z = -0.45m)
-    const maxDepth = 0.45;
-    const boxGeo = new THREE.BoxGeometry(W, H, maxDepth);
-    const edgesGeo = new THREE.EdgesGeometry(boxGeo);
-    const boxMat = new THREE.LineBasicMaterial({
-      color: 0x00e5ff, // Bright cyan wireframe box
-      transparent: true,
-      opacity: 0.85
+    // ------------------------------------------------------------------
+    // 1. Dark Room Interior Walls (Floor, Ceiling, Left, Right, Back)
+    // ------------------------------------------------------------------
+    const roomMat = new THREE.MeshStandardMaterial({
+      color: 0x141519, // Dark matte charcoal matching reference screenshot
+      roughness: 0.85,
+      metalness: 0.05,
+      polygonOffset: true,
+      polygonOffsetFactor: 1,
+      polygonOffsetUnits: 1
     });
-    const wireBox = new THREE.LineSegments(edgesGeo, boxMat);
-    wireBox.position.set(0, 0, -maxDepth / 2);
-    this.group.add(wireBox);
 
-    // Bounded floor grid lines (spanning from Z = 0 to Z = -maxDepth at y = -H/2)
-    const floorLinePositions: number[] = [];
-    const xDivisions = 10;
-    for (let i = 0; i <= xDivisions; i++) {
-      const x = -W / 2 + (i / xDivisions) * W;
-      floorLinePositions.push(x, -H / 2, 0);
-      floorLinePositions.push(x, -H / 2, -maxDepth);
+    // Floor (at y = -H/2)
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(W, maxDepth), roomMat);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.set(0, -H / 2, -maxDepth / 2);
+    floor.receiveShadow = true;
+    this.group.add(floor);
+
+    // Ceiling (at y = +H/2)
+    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(W, maxDepth), roomMat);
+    ceiling.rotation.x = Math.PI / 2;
+    ceiling.position.set(0, H / 2, -maxDepth / 2);
+    ceiling.receiveShadow = true;
+    this.group.add(ceiling);
+
+    // Left Wall (at x = -W/2)
+    const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(maxDepth, H), roomMat);
+    leftWall.rotation.y = Math.PI / 2;
+    leftWall.position.set(-W / 2, 0, -maxDepth / 2);
+    leftWall.receiveShadow = true;
+    this.group.add(leftWall);
+
+    // Right Wall (at x = +W/2)
+    const rightWall = new THREE.Mesh(new THREE.PlaneGeometry(maxDepth, H), roomMat);
+    rightWall.rotation.y = -Math.PI / 2;
+    rightWall.position.set(W / 2, 0, -maxDepth / 2);
+    rightWall.receiveShadow = true;
+    this.group.add(rightWall);
+
+    // Back Wall (at z = -maxDepth)
+    const backWall = new THREE.Mesh(new THREE.PlaneGeometry(W, H), roomMat);
+    backWall.position.set(0, 0, -maxDepth);
+    backWall.receiveShadow = true;
+    this.group.add(backWall);
+
+    // ------------------------------------------------------------------
+    // 2. Amber/Orange Perspective Grid (matching user reference image)
+    // ------------------------------------------------------------------
+    const Nx = 10;
+    const Ny = 6;
+    const Nz = 9; // ~5cm spacing along Z (45cm / 9 = 5cm)
+    const dx = W / Nx;
+    const dy = H / Ny;
+    const dz = maxDepth / Nz;
+
+    const gridPoints: number[] = [];
+
+    // A. Longitudinal lines along Ceiling & Floor running from Z = 0 to Z = -maxDepth
+    for (let i = 0; i <= Nx; i++) {
+      const x = -W / 2 + i * dx;
+      // Ceiling line
+      gridPoints.push(x, H / 2, 0, x, H / 2, -maxDepth);
+      // Floor line
+      gridPoints.push(x, -H / 2, 0, x, -H / 2, -maxDepth);
     }
-    // Sub-grid lateral lines every 5 cm along Z
-    const zStep = 0.05;
-    for (let z = 0; z >= -maxDepth - 0.001; z -= zStep) {
-      floorLinePositions.push(-W / 2, -H / 2, z);
-      floorLinePositions.push(W / 2, -H / 2, z);
+
+    // B. Longitudinal lines along Left & Right walls running from Z = 0 to Z = -maxDepth
+    for (let j = 0; j <= Ny; j++) {
+      const y = -H / 2 + j * dy;
+      // Left wall line
+      gridPoints.push(-W / 2, y, 0, -W / 2, y, -maxDepth);
+      // Right wall line
+      gridPoints.push(W / 2, y, 0, W / 2, y, -maxDepth);
     }
-    const floorGeo = new THREE.BufferGeometry();
-    floorGeo.setAttribute('position', new THREE.Float32BufferAttribute(floorLinePositions, 3));
-    const floorMat = new THREE.LineBasicMaterial({
-      color: 0x223344,
+
+    // C. Transverse rectangular depth rings at every interval along Z
+    for (let k = 0; k <= Nz; k++) {
+      const z = -k * dz;
+      // Bottom segment (Floor)
+      gridPoints.push(-W / 2, -H / 2, z, W / 2, -H / 2, z);
+      // Right segment (Right wall)
+      gridPoints.push(W / 2, -H / 2, z, W / 2, H / 2, z);
+      // Top segment (Ceiling)
+      gridPoints.push(W / 2, H / 2, z, -W / 2, H / 2, z);
+      // Left segment (Left wall)
+      gridPoints.push(-W / 2, H / 2, z, -W / 2, -H / 2, z);
+    }
+
+    // D. Back wall inner grid lines
+    for (let i = 1; i < Nx; i++) {
+      const x = -W / 2 + i * dx;
+      gridPoints.push(x, -H / 2, -maxDepth, x, H / 2, -maxDepth);
+    }
+    for (let j = 1; j < Ny; j++) {
+      const y = -H / 2 + j * dy;
+      gridPoints.push(-W / 2, y, -maxDepth, W / 2, y, -maxDepth);
+    }
+
+    const gridGeo = new THREE.BufferGeometry();
+    gridGeo.setAttribute('position', new THREE.Float32BufferAttribute(gridPoints, 3));
+    const gridMat = new THREE.LineBasicMaterial({
+      color: 0xff9900, // Warm vibrant amber/orange matching the reference image
       transparent: true,
-      opacity: 0.6
+      opacity: 0.95
     });
-    const floorLines = new THREE.LineSegments(floorGeo, floorMat);
-    this.group.add(floorLines);
+    const orangeGrid = new THREE.LineSegments(gridGeo, gridMat);
+    this.group.add(orangeGrid);
 
-    // 2. Metric depth spheres and wireframe ribs along the tunnel (at z = -0.1m, -0.2m, -0.3m, -0.4m)
-    const depths = [0.1, 0.2, 0.3, 0.4];
-    const colors = [0x00ff88, 0x00e5ff, 0xffb703, 0xff00aa];
-
-    // Front baseline label at 0 cm along bottom center line
+    // Front baseline label at bottom center Z = 0
     const frontLabel = this.createLabelSprite('Z: 0 cm (0.0 in)', 0xffffff);
     frontLabel.position.set(0, -H / 2 + 0.012, 0);
     this.group.add(frontLabel);
 
-    depths.forEach((d, idx) => {
-      // Metric depth sphere along center line
-      const sGeo = new THREE.SphereGeometry(0.02, 16, 16);
-      const sMat = new THREE.MeshStandardMaterial({ color: colors[idx], roughness: 0.3 });
-      const s = new THREE.Mesh(sGeo, sMat);
-      s.position.set(0, 0, -d);
-      this.group.add(s);
+    // ------------------------------------------------------------------
+    // 3. Depth Spheres at Varying X, Y, Z + Guidelines to Back of Scene
+    // ------------------------------------------------------------------
+    const sphereConfigs = [
+      {
+        x: -W * 0.25,
+        y:  H * 0.22,
+        z: -0.10,
+        color: 0x00f0ff, // Electric Cyan
+        radius: 0.020
+      },
+      {
+        x:  W * 0.28,
+        y: -H * 0.18,
+        z: -0.18,
+        color: 0x00ff88, // Neon Green
+        radius: 0.020
+      },
+      {
+        x: -W * 0.10,
+        y: -H * 0.03,
+        z: -0.26,
+        color: 0xffbe0b, // Amber Gold
+        radius: 0.020
+      },
+      {
+        x:  W * 0.22,
+        y:  H * 0.20,
+        z: -0.34,
+        color: 0xff00aa, // Vivid Magenta
+        radius: 0.020
+      },
+      {
+        x: -W * 0.18,
+        y: -H * 0.20,
+        z: -0.42,
+        color: 0x9d4edd, // Deep Violet
+        radius: 0.020
+      }
+    ];
 
-      // Wireframe cross-section rib around the box at this depth
-      const ribPositions = [
-        -W / 2, -H / 2, -d,
-         W / 2, -H / 2, -d,
-         W / 2,  H / 2, -d,
-        -W / 2,  H / 2, -d
-      ];
-      const ribGeo = new THREE.BufferGeometry();
-      ribGeo.setAttribute('position', new THREE.Float32BufferAttribute(ribPositions, 3));
-      const ribMat = new THREE.LineBasicMaterial({
-        color: colors[idx],
-        transparent: true,
-        opacity: 0.5
+    sphereConfigs.forEach((config) => {
+      // 1. Depth Sphere
+      const sGeo = new THREE.SphereGeometry(config.radius, 24, 24);
+      const sMat = new THREE.MeshStandardMaterial({
+        color: config.color,
+        roughness: 0.25,
+        metalness: 0.4
       });
-      const ribLine = new THREE.LineLoop(ribGeo, ribMat);
-      this.group.add(ribLine);
+      const sphere = new THREE.Mesh(sGeo, sMat);
+      sphere.position.set(config.x, config.y, config.z);
+      sphere.castShadow = true;
+      this.group.add(sphere);
 
-      // Single crisp label showing Z value in cm and inches along the bottom center line
-      const cm = Math.round(d * 100);
-      const inches = (d * 39.3701).toFixed(1);
+      // 2. Line drawn from center of sphere going straight back through Z axis to back of scene
+      const linePoints = [
+        new THREE.Vector3(config.x, config.y, config.z),
+        new THREE.Vector3(config.x, config.y, -maxDepth)
+      ];
+      const lineGeo = new THREE.BufferGeometry().setFromPoints(linePoints);
+      const lineMat = new THREE.LineBasicMaterial({
+        color: config.color,
+        transparent: true,
+        opacity: 0.9,
+        linewidth: 2
+      });
+      const zGuideline = new THREE.Line(lineGeo, lineMat);
+      this.group.add(zGuideline);
+
+      // 3. Target projection ring on back wall where guideline lands
+      const ringGeo = new THREE.RingGeometry(0.005, 0.009, 24);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: config.color,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.85
+      });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.position.set(config.x, config.y, -maxDepth + 0.001);
+      this.group.add(ring);
+
+      // 4. Floating depth label hovering cleanly above sphere
+      const cm = Math.round(Math.abs(config.z) * 100);
+      const inches = (Math.abs(config.z) * 39.3701).toFixed(1);
       const labelText = `Z: -${cm} cm (${inches} in)`;
 
-      const label = this.createLabelSprite(labelText, colors[idx]);
-      label.position.set(0, -H / 2 + 0.012, -d);
+      const label = this.createLabelSprite(labelText, config.color);
+      label.position.set(config.x, config.y + config.radius + 0.016, config.z);
       this.group.add(label);
     });
   }
