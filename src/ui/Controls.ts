@@ -20,7 +20,6 @@ export interface ControlsCallbacks {
   onInputModeChange: (mode: InputMode) => void;
   onSceneChange: (sceneType: SceneType) => void;
   onFeedFish?: () => void;
-  onToggleCamera?: (enable: boolean) => Promise<boolean> | boolean;
   onLoadCustomFish?: (source: string, count: number, options: CustomFishOptions) => Promise<number>;
   onToggleDebugHud?: (visible: boolean) => void;
 }
@@ -29,7 +28,6 @@ export class Controls {
   private topBar: HTMLElement;
   private settingsDrawer: HTMLElement;
   private isDrawerOpen: boolean = false;
-  private isCameraActive: boolean = true;
 
   private currentInputMode: InputMode = InputMode.Webcam;
   private perspectiveController: PerspectiveController;
@@ -56,7 +54,6 @@ export class Controls {
 
     const initialSettings = this.settingsManager.getSettings();
     this.currentInputMode = initialSettings.inputMode;
-    this.isCameraActive = initialSettings.isCameraActive;
     this.isDebugHudVisible = initialSettings.debugHudVisible;
 
     this.topBar = document.createElement('header');
@@ -319,11 +316,6 @@ export class Controls {
     const isMouseSelected = settings.inputMode === InputMode.Mouse ? 'selected' : '';
     const isAutoSelected = settings.inputMode === InputMode.Auto ? 'selected' : '';
 
-    const isCamOn = settings.isCameraActive;
-    const camBtnText = isCamOn ? '🟢 Camera On (Click to Turn Off)' : '🔴 Camera Off (Click to Turn On)';
-    const camBtnClass = isCamOn ? 'btn-camera-toggle btn-camera-on' : 'btn-camera-toggle btn-camera-off';
-    const camBtnTitle = isCamOn ? 'Click to turn off camera' : 'Click to turn on camera';
-
     const isAccurateProj = settings.projectionMode === ProjectionMode.Accurate ? 'selected' : '';
     const isSimpleProj = settings.projectionMode === ProjectionMode.Simple ? 'selected' : '';
 
@@ -353,17 +345,6 @@ export class Controls {
             <option value="${InputMode.Mouse}" ${isMouseSelected}>🖱️ Mouse Simulation Mode</option>
             <option value="${InputMode.Auto}" ${isAutoSelected}>🔄 Auto Demo Orbit Mode</option>
           </select>
-        </div>
-
-        <!-- Camera Power Toggle -->
-        <div class="setting-group">
-          <label>Camera Tracking Power:</label>
-          <button id="btn-toggle-camera" class="${camBtnClass}" title="${camBtnTitle}">
-            ${camBtnText}
-          </button>
-          <small style="color: var(--text-secondary); font-size: 0.72rem; line-height: 1.3; display: block; margin-top: 5px;">
-            Turning off releases your webcam device and powers down the camera LED.
-          </small>
         </div>
 
         <!-- Projection Mode -->
@@ -535,21 +516,6 @@ export class Controls {
       this.currentInputMode = mode;
       this.settingsManager.updateSettings({ inputMode: mode });
       this.callbacks.onInputModeChange(mode);
-    });
-
-    // Camera power toggle button
-    const cameraToggleBtn = this.settingsDrawer.querySelector('#btn-toggle-camera') as HTMLButtonElement;
-    cameraToggleBtn?.addEventListener('click', async () => {
-      const targetState = !this.isCameraActive;
-      if (this.callbacks.onToggleCamera) {
-        cameraToggleBtn.disabled = true;
-        try {
-          const actualState = await this.callbacks.onToggleCamera(targetState);
-          this.setCameraActiveState(actualState);
-        } finally {
-          cameraToggleBtn.disabled = false;
-        }
-      }
     });
 
     // Projection mode change
@@ -755,8 +721,6 @@ export class Controls {
     if (inputSelect) inputSelect.value = settings.inputMode;
     this.currentInputMode = settings.inputMode;
 
-    this.setCameraActiveState(settings.isCameraActive);
-
     const projSelect = this.settingsDrawer.querySelector('#proj-mode-select') as HTMLSelectElement;
     if (projSelect) projSelect.value = settings.projectionMode;
 
@@ -802,26 +766,5 @@ export class Controls {
     this.debugView.setVisible(settings.webcamPipVisible);
     const pipToggle = this.settingsDrawer.querySelector('#toggle-webcam-pip') as HTMLInputElement;
     if (pipToggle) pipToggle.checked = settings.webcamPipVisible;
-  }
-
-  public setCameraActiveState(active: boolean): void {
-    this.isCameraActive = active;
-    this.settingsManager.updateSettings({ isCameraActive: active });
-    const btn = this.settingsDrawer?.querySelector('#btn-toggle-camera') as HTMLButtonElement;
-    if (!btn) return;
-
-    if (active) {
-      btn.textContent = '🟢 Camera On (Click to Turn Off)';
-      btn.className = 'btn-camera-toggle btn-camera-on';
-      btn.title = 'Click to turn off camera';
-    } else {
-      btn.textContent = '🔴 Camera Off (Click to Turn On)';
-      btn.className = 'btn-camera-toggle btn-camera-off';
-      btn.title = 'Click to turn on camera';
-    }
-  }
-
-  public getCameraActiveState(): boolean {
-    return this.isCameraActive;
   }
 }

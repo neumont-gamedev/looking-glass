@@ -246,44 +246,6 @@ html, body {
   box-shadow: 0 0 12px rgba(0, 198, 255, 0.4);
 }
 
-.btn-camera-toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border-radius: 6px;
-  padding: 7px 16px;
-  font-size: 0.82rem;
-  width: 100%;
-}
-
-.btn-camera-on {
-  background: rgba(16, 185, 129, 0.15);
-  border: 1px solid rgba(16, 185, 129, 0.4);
-  color: #34d399;
-}
-
-.btn-camera-on:hover {
-  background: rgba(16, 185, 129, 0.28);
-  border-color: #34d399;
-  box-shadow: 0 0 12px rgba(16, 185, 129, 0.35);
-}
-
-.btn-camera-off {
-  background: rgba(239, 68, 68, 0.15);
-  border: 1px solid rgba(239, 68, 68, 0.4);
-  color: #f87171;
-}
-
-.btn-camera-off:hover {
-  background: rgba(239, 68, 68, 0.28);
-  border-color: #f87171;
-  box-shadow: 0 0 12px rgba(239, 68, 68, 0.35);
-}
-
 /* ==========================================================================
    HUD Status Badge (Bottom-Left)
    ========================================================================== */
