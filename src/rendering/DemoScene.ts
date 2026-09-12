@@ -461,7 +461,7 @@ export class DemoScene {
       {
         x: -W * 0.06,
         y: -H * 0.02,
-        z: -0.40, // -40 cm deep near back wall
+        z: -0.35, // -35 cm deep (moved forward 5 cm)
         color: 0x9d4edd, // Deep Violet
         radius: 0.020
       }
