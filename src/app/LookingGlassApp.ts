@@ -116,15 +116,6 @@ export class LookingGlassApp {
         onInputModeChange: (mode) => this.handleInputModeChange(mode),
         onSceneChange: (sceneType) => this.handleSceneChange(sceneType),
         onFeedFish: () => this.handleFeedFish(),
-        onLoadCustomFish: async (source, count, options) => {
-          if (this.sceneManager.getCurrentSceneType() !== SceneType.Aquarium) {
-            const screen = this.calibrationManager.getScreenGeometry();
-            this.sceneManager.setSceneType(SceneType.Aquarium, screen);
-            this.controls.setScene(SceneType.Aquarium);
-            this.settingsManager.updateSettings({ sceneType: SceneType.Aquarium });
-          }
-          return await this.sceneManager.aquariumScene.addCustomFish(source, count, options);
-        },
         onToggleDebugHud: (visible) => {
           this.sceneManager.demoScene.setAxesVisible(visible);
         }
