@@ -183,6 +183,18 @@ html, body {
   backdrop-filter: blur(8px);
 }
 
+.btn-icon {
+  min-width: 38px;
+  height: 38px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+  line-height: 1;
+  border-radius: 8px;
+}
+
 .btn:hover {
   background: rgba(30, 41, 59, 0.9);
   border-color: var(--accent-cyan);
@@ -414,48 +426,76 @@ input[type="range"] {
 }
 
 /* ==========================================================================
-   Calibration Modal Dialog
+   Calibration Window (Right Side Floating Panel)
    ========================================================================== */
 .calibration-modal-overlay {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(5, 7, 10, 0.8);
-  backdrop-filter: blur(8px);
+  top: 68px;
+  right: 20px;
+  bottom: 20px;
+  width: 390px;
+  max-width: calc(100vw - 40px);
+  background: transparent;
+  pointer-events: none;
   display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 100;
+  flex-direction: column;
+  align-items: flex-end;
+  z-index: 50;
 }
 
 .calibration-modal {
-  width: 480px;
-  background: rgba(20, 26, 36, 0.95);
+  width: 100%;
+  max-height: 100%;
+  background: rgba(18, 24, 34, 0.90);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--bg-surface-border);
-  border-radius: 12px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8);
+  border-radius: 14px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65), 0 0 1px rgba(255, 255, 255, 0.15);
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
+  animation: slideInRight 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 20px;
+  padding: 12px 18px;
   border-bottom: 1px solid var(--bg-surface-border);
+  flex-shrink: 0;
+  background: rgba(12, 16, 24, 0.6);
 }
 
 .modal-header h2 {
-  font-size: 1.05rem;
+  font-size: 0.98rem;
   font-weight: 600;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .modal-body {
-  padding: 20px;
-  max-height: 70vh;
+  padding: 16px 18px;
   overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .calib-step {

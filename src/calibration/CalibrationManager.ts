@@ -126,8 +126,17 @@ export class CalibrationManager {
     this.data.screenHeight = Math.max(0.1, heightMeters);
     this.screenGeometry.width = this.data.screenWidth;
     this.screenGeometry.height = this.data.screenHeight;
+    this.data.screenDiagonalInches = Math.hypot(this.data.screenWidth, this.data.screenHeight) * 39.3701;
     this.save();
     this.notify();
+  }
+
+  public setScreenWidth(widthMeters: number): void {
+    this.setScreenDimensions(widthMeters, this.data.screenHeight);
+  }
+
+  public setScreenHeight(heightMeters: number): void {
+    this.setScreenDimensions(this.data.screenWidth, heightMeters);
   }
 
   public setSensitivity(x: number, y: number, z: number): void {

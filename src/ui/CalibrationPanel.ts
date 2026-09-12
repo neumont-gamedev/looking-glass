@@ -75,6 +75,14 @@ export class CalibrationPanel {
     this.stopBiometricPolling();
   }
 
+  public toggle(): void {
+    if (this.isOpen) {
+      this.close();
+    } else {
+      this.open();
+    }
+  }
+
   public getIsOpen(): boolean {
     return this.isOpen;
   }
@@ -257,8 +265,8 @@ export class CalibrationPanel {
     this.overlay.innerHTML = `
       <div class="calibration-modal">
         <div class="modal-header">
-          <h2>Display & Viewer Calibration</h2>
-          <button class="close-btn" id="calib-close-btn">&times;</button>
+          <h2>⚙ Calibration Controls</h2>
+          <button class="close-btn" id="calib-close-btn" title="Close (Esc)">&times;</button>
         </div>
         <div class="modal-body">
           <!-- Step 1: Center Position -->
@@ -338,20 +346,22 @@ export class CalibrationPanel {
           <!-- Step 3: Screen Dimensions -->
           <section class="calib-step">
             <h3>Step 3 — Screen Dimensions</h3>
-            <p>Monitor diagonal size:</p>
+            <p>Physical size of the display window:</p>
             <div class="input-row">
-              <label for="calib-diag-select">Monitor Size:</label>
-              <select id="calib-diag-select">
-                <option value="14" ${data.screenDiagonalInches === 14 ? 'selected' : ''}>14" Laptop</option>
-                <option value="16" ${data.screenDiagonalInches === 16 ? 'selected' : ''}>16" Laptop</option>
-                <option value="21.5" ${data.screenDiagonalInches === 21.5 ? 'selected' : ''}>21.5" Desktop</option>
-                <option value="24" ${data.screenDiagonalInches === 24 ? 'selected' : ''}>24" Standard Desktop</option>
-                <option value="27" ${data.screenDiagonalInches === 27 ? 'selected' : ''}>27" Standard Desktop</option>
-                <option value="32" ${data.screenDiagonalInches === 32 ? 'selected' : ''}>32" Large Display</option>
-              </select>
+              <label for="calib-width-slider">
+                Width: <span id="calib-width-val">${(data.screenWidth * 100).toFixed(1)} cm (${(data.screenWidth * 39.3701).toFixed(1)} in)</span>
+              </label>
+              <input type="range" id="calib-width-slider" min="20" max="150" step="0.5" value="${(data.screenWidth * 100).toFixed(1)}" />
             </div>
-            <div class="screen-metric-readout">
+            <div class="input-row">
+              <label for="calib-height-slider">
+                Height: <span id="calib-height-val">${(data.screenHeight * 100).toFixed(1)} cm (${(data.screenHeight * 39.3701).toFixed(1)} in)</span>
+              </label>
+              <input type="range" id="calib-height-slider" min="12" max="100" step="0.5" value="${(data.screenHeight * 100).toFixed(1)}" />
+            </div>
+            <div class="screen-metric-readout" id="calib-dim-readout">
               Physical Window: ${(data.screenWidth * 100).toFixed(1)} cm × ${(data.screenHeight * 100).toFixed(1)} cm (${(data.screenWidth * 39.3701).toFixed(1)}" × ${(data.screenHeight * 39.3701).toFixed(1)}")
+              <br><span style="font-size: 0.72rem; color: var(--text-secondary);">Diagonal: ${(Math.hypot(data.screenWidth, data.screenHeight) * 39.3701).toFixed(1)}" • Aspect: ${(data.screenWidth / data.screenHeight).toFixed(2)}:1</span>
             </div>
           </section>
 
@@ -451,12 +461,43 @@ export class CalibrationPanel {
       this.manager.setViewingDistance(cmVal / 100);
     });
 
-    // Screen size select
-    const diagSelect = this.overlay.querySelector('#calib-diag-select') as HTMLSelectElement;
-    diagSelect?.addEventListener('change', (e) => {
-      const diag = parseFloat((e.target as HTMLSelectElement).value);
-      this.manager.setScreenDiagonal(diag);
-      this.render();
+    // Screen dimensions width and height sliders
+    const widthSlider = this.overlay.querySelector('#calib-width-slider') as HTMLInputElement;
+    const widthVal = this.overlay.querySelector('#calib-width-val');
+    const heightSlider = this.overlay.querySelector('#calib-height-slider') as HTMLInputElement;
+    const heightVal = this.overlay.querySelector('#calib-height-val');
+    const dimReadout = this.overlay.querySelector('#calib-dim-readout');
+
+    const updateDimReadout = (wMeters: number, hMeters: number) => {
+      if (dimReadout) {
+        const wCm = (wMeters * 100).toFixed(1);
+        const hCm = (hMeters * 100).toFixed(1);
+        const wIn = (wMeters * 39.3701).toFixed(1);
+        const hIn = (hMeters * 39.3701).toFixed(1);
+        const diagIn = (Math.hypot(wMeters, hMeters) * 39.3701).toFixed(1);
+        const aspect = (wMeters / hMeters).toFixed(2);
+        dimReadout.innerHTML = `Physical Window: ${wCm} cm × ${hCm} cm (${wIn}" × ${hIn}")<br><span style="font-size: 0.72rem; color: var(--text-secondary);">Diagonal: ${diagIn}" • Aspect: ${aspect}:1</span>`;
+      }
+    };
+
+    widthSlider?.addEventListener('input', (e) => {
+      const valCm = parseFloat((e.target as HTMLInputElement).value);
+      const valIn = (valCm * 0.393701).toFixed(1);
+      if (widthVal) widthVal.textContent = `${valCm.toFixed(1)} cm (${valIn} in)`;
+      const currentH = this.manager.getData().screenHeight;
+      const newW = valCm / 100;
+      this.manager.setScreenDimensions(newW, currentH);
+      updateDimReadout(newW, currentH);
+    });
+
+    heightSlider?.addEventListener('input', (e) => {
+      const valCm = parseFloat((e.target as HTMLInputElement).value);
+      const valIn = (valCm * 0.393701).toFixed(1);
+      if (heightVal) heightVal.textContent = `${valCm.toFixed(1)} cm (${valIn} in)`;
+      const currentW = this.manager.getData().screenWidth;
+      const newH = valCm / 100;
+      this.manager.setScreenDimensions(currentW, newH);
+      updateDimReadout(currentW, newH);
     });
 
     // Sensitivity sliders

@@ -133,9 +133,8 @@ export class Controls {
       </div>
       <div class="topbar-actions">
         <button class="btn btn-hud" id="btn-feed-fish">Feed Fish 🦐</button>
-        <button class="btn btn-hud" id="btn-calibrate">Calibrate</button>
-        <button class="btn btn-hud" id="btn-toggle-settings">Settings ⚙</button>
-        <button class="btn btn-hud" id="btn-fullscreen">⛶ Fullscreen</button>
+        <button class="btn btn-hud btn-icon" id="btn-fullscreen" title="Toggle Fullscreen">⛶</button>
+        <button class="btn btn-hud btn-icon" id="btn-gear" title="Calibration & Settings">⚙</button>
       </div>
     `;
 
@@ -156,20 +155,16 @@ export class Controls {
       if (this.callbacks.onFeedFish) this.callbacks.onFeedFish();
     });
 
-    this.topBar.querySelector('#btn-calibrate')?.addEventListener('click', () => {
-      this.calibrationPanel.open();
-    });
-
-    this.topBar.querySelector('#btn-toggle-settings')?.addEventListener('click', () => {
-      this.toggleDrawer();
-    });
-
     this.topBar.querySelector('#btn-fullscreen')?.addEventListener('click', () => {
       if (!document.fullscreenElement) {
         document.documentElement.requestFullscreen().catch((err) => console.warn(err));
       } else {
         document.exitFullscreen().catch((err) => console.warn(err));
       }
+    });
+
+    this.topBar.querySelector('#btn-gear')?.addEventListener('click', () => {
+      this.calibrationPanel.toggle();
     });
   }
 
