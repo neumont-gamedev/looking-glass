@@ -54,7 +54,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   inputMode: InputMode.Webcam,
   isCameraActive: true,
   projectionMode: ProjectionMode.Accurate,
-  depthMode: 'natural',
+  depthMode: 'aperture',
   lookaheadMs: 35,
   smoothTimeMs: 55,
   deadbandEnabled: true,
@@ -128,9 +128,8 @@ export class SettingsManager {
     if (!Object.values(ProjectionMode).includes(s.projectionMode)) {
       s.projectionMode = DEFAULT_APP_SETTINGS.projectionMode;
     }
-    if (s.depthMode !== 'natural' && s.depthMode !== 'aperture') {
-      s.depthMode = DEFAULT_APP_SETTINGS.depthMode;
-    }
+    // Always use fixed aperture
+    s.depthMode = 'aperture';
     if (!['+X', '-X', '+Z', '-Z'].includes(s.customFishForwardAxis)) {
       s.customFishForwardAxis = DEFAULT_APP_SETTINGS.customFishForwardAxis;
     }

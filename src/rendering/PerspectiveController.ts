@@ -25,7 +25,7 @@ export class PerspectiveController {
   public readonly camera: THREE.PerspectiveCamera;
   private screen: ScreenGeometry;
   private projectionMode: ProjectionMode = ProjectionMode.Accurate;
-  private depthMode: 'natural' | 'aperture' = 'natural';
+  private depthMode: 'natural' | 'aperture' = 'aperture';
   private referenceDistance: number = 0.65;
 
   // Current interpolated camera pose in world space (meters)

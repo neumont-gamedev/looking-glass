@@ -55,7 +55,7 @@ export class ProjectionMath {
     near: number = 0.05,
     far: number = 100.0,
     referenceDistance: number = 0.65,
-    depthMode: 'natural' | 'aperture' = 'natural'
+    depthMode: 'natural' | 'aperture' = 'aperture'
   ): FrustumBounds {
     // Sanitize eye distance to prevent division by zero or negative distance
     const safeZ = Math.max(0.1, Number.isFinite(eyeZ) ? eyeZ : 0.6);
@@ -119,7 +119,7 @@ export class ProjectionMath {
     near: number = 0.05,
     far: number = 100.0,
     referenceDistance: number = 0.65,
-    depthMode: 'natural' | 'aperture' = 'natural'
+    depthMode: 'natural' | 'aperture' = 'aperture'
   ): void {
     const bounds = this.calculateFrustumBounds(eyeX, eyeY, eyeZ, screen, near, far, referenceDistance, depthMode);
 

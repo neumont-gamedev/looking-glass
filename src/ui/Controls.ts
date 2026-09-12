@@ -319,9 +319,6 @@ export class Controls {
     const isAccurateProj = settings.projectionMode === ProjectionMode.Accurate ? 'selected' : '';
     const isSimpleProj = settings.projectionMode === ProjectionMode.Simple ? 'selected' : '';
 
-    const isNaturalDepth = settings.depthMode === 'natural' ? 'selected' : '';
-    const isApertureDepth = settings.depthMode === 'aperture' ? 'selected' : '';
-
     const isAquarium = settings.sceneType === SceneType.Aquarium ? 'selected' : '';
     const isDiorama = settings.sceneType === SceneType.Diorama ? 'selected' : '';
     const isDebug = settings.sceneType === SceneType.Debug ? 'selected' : '';
@@ -353,15 +350,6 @@ export class Controls {
           <select id="proj-mode-select">
             <option value="${ProjectionMode.Accurate}" ${isAccurateProj}>Off-Axis Asymmetric Window</option>
             <option value="${ProjectionMode.Simple}" ${isSimpleProj}>Camera Translation</option>
-          </select>
-        </div>
-
-        <!-- Head Depth Behavior -->
-        <div class="setting-group">
-          <label for="depth-mode-select">Head Depth (Forward / Back) Behavior:</label>
-          <select id="depth-mode-select">
-            <option value="natural" ${isNaturalDepth}>🔍 Natural Approach (Objects enlarge as you lean in)</option>
-            <option value="aperture" ${isApertureDepth}>🪟 Fixed Aperture (Strict window aperture)</option>
           </select>
         </div>
 
@@ -524,14 +512,6 @@ export class Controls {
       const mode = (e.target as HTMLSelectElement).value as ProjectionMode;
       this.perspectiveController.setProjectionMode(mode);
       this.settingsManager.updateSettings({ projectionMode: mode });
-    });
-
-    // Head Depth Mode change (Natural Approach vs Fixed Aperture)
-    const depthSelect = this.settingsDrawer.querySelector('#depth-mode-select') as HTMLSelectElement;
-    depthSelect?.addEventListener('change', (e) => {
-      const mode = (e.target as HTMLSelectElement).value as 'natural' | 'aperture';
-      this.perspectiveController.setDepthMode(mode);
-      this.settingsManager.updateSettings({ depthMode: mode });
     });
 
     // Scene select
@@ -723,9 +703,6 @@ export class Controls {
 
     const projSelect = this.settingsDrawer.querySelector('#proj-mode-select') as HTMLSelectElement;
     if (projSelect) projSelect.value = settings.projectionMode;
-
-    const depthSelect = this.settingsDrawer.querySelector('#depth-mode-select') as HTMLSelectElement;
-    if (depthSelect) depthSelect.value = settings.depthMode;
 
     const sceneSelect = this.settingsDrawer.querySelector('#scene-select') as HTMLSelectElement;
     if (sceneSelect) sceneSelect.value = settings.sceneType;
