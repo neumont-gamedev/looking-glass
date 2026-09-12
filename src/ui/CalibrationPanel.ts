@@ -28,6 +28,7 @@ export class CalibrationPanel {
   private activeDistanceTab: DistanceCalibrationMode = 'wireframe';
   private biometricTimer: number | null = null;
   private latestBiometricResult: BiometricDistanceResult | null = null;
+  private onOpenCb: (() => void) | null = null;
 
   constructor(
     manager: CalibrationManager,
@@ -61,7 +62,14 @@ export class CalibrationPanel {
     window.addEventListener('keydown', this.handleKeyDown);
   }
 
+  public setOnOpenCallback(cb: () => void): void {
+    this.onOpenCb = cb;
+  }
+
   public open(): void {
+    if (this.onOpenCb) {
+      this.onOpenCb();
+    }
     this.isOpen = true;
     this.activeDistanceTab = this.manager.getData().distanceMode ?? 'wireframe';
     this.render();

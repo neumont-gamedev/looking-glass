@@ -66,6 +66,12 @@ export class Controls {
     this.settingsDrawer.className = 'settings-drawer';
     this.settingsDrawer.style.display = 'none';
 
+    this.calibrationPanel.setOnOpenCallback(() => {
+      if (this.isDrawerOpen) {
+        this.closeDrawer();
+      }
+    });
+
     this.buildTopBar();
     this.buildDrawer();
 
@@ -134,7 +140,21 @@ export class Controls {
       <div class="topbar-actions">
         <button class="btn btn-hud" id="btn-feed-fish">Feed Fish 🦐</button>
         <button class="btn btn-hud btn-icon" id="btn-fullscreen" title="Toggle Fullscreen">⛶</button>
-        <button class="btn btn-hud btn-icon" id="btn-gear" title="Calibration & Settings">⚙</button>
+        <button class="btn btn-hud btn-icon" id="btn-gear" title="Calibration Controls (Window & Display)">⚙</button>
+        <button class="btn btn-hud btn-sm" id="btn-toggle-settings" title="Settings (Scenes, Tracking, Filters, Debug)">
+          <svg class="btn-svg-icon" viewBox="0 0 24 24">
+            <line x1="4" y1="21" x2="4" y2="14"></line>
+            <line x1="4" y1="10" x2="4" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12" y2="3"></line>
+            <line x1="20" y1="21" x2="20" y2="16"></line>
+            <line x1="20" y1="12" x2="20" y2="3"></line>
+            <line x1="1" y1="14" x2="7" y2="14"></line>
+            <line x1="9" y1="8" x2="15" y2="8"></line>
+            <line x1="17" y1="16" x2="23" y2="16"></line>
+          </svg>
+          <span>Settings</span>
+        </button>
       </div>
     `;
 
@@ -164,7 +184,17 @@ export class Controls {
     });
 
     this.topBar.querySelector('#btn-gear')?.addEventListener('click', () => {
+      if (this.isDrawerOpen) {
+        this.closeDrawer();
+      }
       this.calibrationPanel.toggle();
+    });
+
+    this.topBar.querySelector('#btn-toggle-settings')?.addEventListener('click', () => {
+      if (this.calibrationPanel.getIsOpen()) {
+        this.calibrationPanel.close();
+      }
+      this.toggleDrawer();
     });
   }
 
@@ -197,6 +227,9 @@ export class Controls {
   }
 
   public openDrawer(): void {
+    if (this.calibrationPanel.getIsOpen()) {
+      this.calibrationPanel.close();
+    }
     this.isDrawerOpen = true;
     this.settingsDrawer.style.display = 'block';
   }
@@ -465,8 +498,15 @@ export class Controls {
           </label>
         </div>
 
-        <!-- Reset Settings to Defaults -->
+        <!-- Open Calibration shortcut -->
         <div class="setting-group" style="margin-top: 14px; border-top: 1px solid var(--bg-surface-border); padding-top: 12px;">
+          <button id="btn-drawer-open-calibration" class="btn" style="width: 100%; border: 1px solid rgba(0, 229, 255, 0.4); color: var(--accent-cyan); background: rgba(0, 229, 255, 0.08); cursor: pointer; padding: 7px 12px; font-size: 0.78rem; transition: background 0.2s;">
+            ⚙ Open Display Calibration
+          </button>
+        </div>
+
+        <!-- Reset Settings to Defaults -->
+        <div class="setting-group" style="margin-top: 10px;">
           <button id="btn-reset-settings" class="btn" style="width: 100%; border: 1px solid rgba(239, 68, 68, 0.4); color: #f87171; background: rgba(239, 68, 68, 0.08); cursor: pointer; padding: 7px 12px; font-size: 0.78rem; transition: background 0.2s;">
             ↺ Reset Settings to Defaults
           </button>
@@ -481,6 +521,11 @@ export class Controls {
 
     this.settingsDrawer.querySelector('#drawer-close-btn')?.addEventListener('click', () => {
       this.closeDrawer();
+    });
+
+    this.settingsDrawer.querySelector('#btn-drawer-open-calibration')?.addEventListener('click', () => {
+      this.closeDrawer();
+      this.calibrationPanel.open();
     });
 
     // Input mode change

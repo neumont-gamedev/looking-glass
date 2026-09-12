@@ -166,6 +166,7 @@ html, body {
 
 .topbar-actions {
   display: flex;
+  align-items: center;
   gap: 10px;
   pointer-events: auto;
 }
@@ -193,6 +194,39 @@ html, body {
   font-size: 1.15rem;
   line-height: 1;
   border-radius: 8px;
+}
+
+.btn-sm {
+  height: 38px;
+  padding: 0 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 8px;
+  line-height: 1;
+}
+
+.btn-svg-icon {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .btn-sm span {
+    display: none;
+  }
+  .btn-sm {
+    padding: 0 10px;
+    min-width: 38px;
+  }
 }
 
 .btn:hover {
