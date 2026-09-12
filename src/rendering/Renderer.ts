@@ -30,6 +30,10 @@ export class Renderer {
     window.addEventListener('resize', this.onWindowResize);
   }
 
+  public setSize(width: number, height: number): void {
+    this.renderer.setSize(width, height);
+  }
+
   private onWindowResize = (): void => {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
   };

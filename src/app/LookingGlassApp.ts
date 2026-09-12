@@ -191,11 +191,28 @@ export class LookingGlassApp {
     window.addEventListener('mousemove', this.onMouseMove);
     window.addEventListener('pointermove', this.onMouseMove);
 
+    // Viewport resizing and fullscreen transitions
+    window.addEventListener('resize', this.onWindowResize);
+    document.addEventListener('fullscreenchange', this.onFullscreenChange);
+
     // Aquarium interactive events (tap glass & feed fish)
     this.canvas.addEventListener('click', this.onCanvasClick);
     this.canvas.addEventListener('contextmenu', this.onCanvasContextMenu);
     window.addEventListener('keydown', this.onKeyDown);
   }
+
+  private onWindowResize = (): void => {
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.calibrationManager.updateViewport(window.innerWidth, window.innerHeight);
+  };
+
+  private onFullscreenChange = (): void => {
+    // Ensure browser layout has completed before reading inner dimensions
+    requestAnimationFrame(() => {
+      this.renderer.setSize(window.innerWidth, window.innerHeight);
+      this.calibrationManager.updateViewport(window.innerWidth, window.innerHeight);
+    });
+  };
 
   private onCanvasClick = (e: MouseEvent): void => {
     // Only primary left button
@@ -453,6 +470,8 @@ export class LookingGlassApp {
     }
     window.removeEventListener('mousemove', this.onMouseMove);
     window.removeEventListener('pointermove', this.onMouseMove);
+    window.removeEventListener('resize', this.onWindowResize);
+    document.removeEventListener('fullscreenchange', this.onFullscreenChange);
     this.canvas.removeEventListener('click', this.onCanvasClick);
     this.canvas.removeEventListener('contextmenu', this.onCanvasContextMenu);
     window.removeEventListener('keydown', this.onKeyDown);

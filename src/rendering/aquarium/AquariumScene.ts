@@ -59,19 +59,23 @@ export class AquariumScene {
     this.interactions.setScreenGeometry(screen);
     this.causticEffect.rebuild(screen, this.depth);
 
-    this.clear();
+    this.clearEnvironment();
     this.buildEnvironment();
-    this.populateFish();
+
+    if (this.boids.fishes.length === 0) {
+      this.populateFish();
+    } else {
+      // Gently keep existing swimming fish inside updated tank bounds
+      const halfW = screen.width / 2 - 0.04;
+      const halfH = screen.height / 2 - 0.04;
+      for (const fish of this.boids.fishes) {
+        fish.position.x = Math.max(-halfW, Math.min(halfW, fish.position.x));
+        fish.position.y = Math.max(-halfH, Math.min(halfH, fish.position.y));
+      }
+    }
   }
 
-  private clear(): void {
-    // Clean up fish
-    for (const fish of this.boids.fishes) {
-      this.group.remove(fish.group);
-      fish.dispose();
-    }
-    this.boids.fishes.length = 0;
-
+  private clearEnvironment(): void {
     // Clean up bubbles and seaweed
     if (this.bubbles) {
       this.group.remove(this.bubbles);
@@ -101,16 +105,30 @@ export class AquariumScene {
     }
     this.customDecorations = [];
 
-    while (this.group.children.length > 0) {
-      const child = this.group.children[0];
-      this.group.remove(child);
-      if ((child as THREE.Mesh).geometry) {
-        (child as THREE.Mesh).geometry.dispose();
+    // Remove environment meshes (floor, walls, ceiling, rocks) but keep fish groups, interactions, and caustic effect
+    const toRemove: THREE.Object3D[] = [];
+    for (const child of this.group.children) {
+      if (
+        child === this.interactions.group ||
+        child === this.causticEffect.group ||
+        this.boids.fishes.some((f) => f.group === child)
+      ) {
+        continue;
       }
+      toRemove.push(child);
     }
 
-    this.group.add(this.interactions.group);
-    this.group.add(this.causticEffect.group);
+    for (const child of toRemove) {
+      this.group.remove(child);
+      child.traverse((c) => {
+        if ((c as THREE.Mesh).isMesh) {
+          (c as THREE.Mesh).geometry?.dispose();
+          const mat = (c as THREE.Mesh).material;
+          if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
+          else if (mat) mat.dispose();
+        }
+      });
+    }
   }
 
   private buildEnvironment(): void {

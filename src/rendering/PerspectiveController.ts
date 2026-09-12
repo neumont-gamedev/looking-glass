@@ -87,6 +87,8 @@ export class PerspectiveController {
 
   public setScreenGeometry(screen: ScreenGeometry): void {
     this.screen = screen;
+    this.camera.aspect = screen.aspectRatio;
+    this.camera.updateProjectionMatrix();
     this.applyCurrentProjection();
   }
 

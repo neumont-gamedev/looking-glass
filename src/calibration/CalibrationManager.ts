@@ -18,6 +18,58 @@ export class CalibrationManager {
   constructor() {
     this.data = this.load();
     this.screenGeometry = new ScreenGeometry(this.data.screenWidth, this.data.screenHeight);
+    if (typeof window !== 'undefined' && window.innerWidth > 0 && window.innerHeight > 0) {
+      this.updateViewport(window.innerWidth, window.innerHeight);
+    }
+  }
+
+  /**
+   * Adapts physical screen dimensions to match the viewport's exact aspect ratio
+   * based on the display's physical pixel pitch.
+   *
+   * Physical display pixels are square (1:1 aspect ratio). Therefore, the physical width
+   * and height of any viewport rectangle on screen must have the exact same aspect ratio
+   * as the viewport pixel dimensions: W_meters / H_meters = widthPx / heightPx.
+   *
+   * @param widthPx Viewport width in pixels (typically window.innerWidth)
+   * @param heightPx Viewport height in pixels (typically window.innerHeight)
+   */
+  public updateViewport(widthPx: number, heightPx: number): void {
+    if (widthPx <= 0 || heightPx <= 0) return;
+
+    // Monitor diagonal in meters
+    const diagMeters = (this.data.screenDiagonalInches ?? 24) * 0.0254;
+
+    // Physical screen resolution in pixels
+    // Use window.screen if available to determine physical pixel pitch
+    const screenW = (typeof window !== 'undefined' && window.screen?.width > 0)
+      ? window.screen.width
+      : widthPx;
+    const screenH = (typeof window !== 'undefined' && window.screen?.height > 0)
+      ? window.screen.height
+      : heightPx;
+
+    const screenDiagPx = Math.hypot(screenW, screenH);
+    const pixelPitch = diagMeters / (screenDiagPx > 0 ? screenDiagPx : Math.hypot(1920, 1080));
+
+    // Viewport physical dimensions in meters
+    const viewportWidthMeters = widthPx * pixelPitch;
+    const viewportHeightMeters = heightPx * pixelPitch;
+
+    // Avoid redundant notifications if dimensions haven't changed meaningfully (< 0.2 mm)
+    const dw = Math.abs(this.screenGeometry.width - viewportWidthMeters);
+    const dh = Math.abs(this.screenGeometry.height - viewportHeightMeters);
+    if (dw < 0.0002 && dh < 0.0002) {
+      return;
+    }
+
+    this.data.screenWidth = viewportWidthMeters;
+    this.data.screenHeight = viewportHeightMeters;
+    this.screenGeometry.width = viewportWidthMeters;
+    this.screenGeometry.height = viewportHeightMeters;
+
+    this.save();
+    this.notify();
   }
 
   public getData(): CalibrationData {
@@ -56,13 +108,17 @@ export class CalibrationManager {
 
   public setScreenDiagonal(inches: number): void {
     this.data.screenDiagonalInches = inches;
-    const geom = ScreenGeometry.fromDiagonal(inches, 16, 9);
-    this.data.screenWidth = geom.width;
-    this.data.screenHeight = geom.height;
-    this.screenGeometry.width = geom.width;
-    this.screenGeometry.height = geom.height;
-    this.save();
-    this.notify();
+    if (typeof window !== 'undefined' && window.innerWidth > 0 && window.innerHeight > 0) {
+      this.updateViewport(window.innerWidth, window.innerHeight);
+    } else {
+      const geom = ScreenGeometry.fromDiagonal(inches, 16, 9);
+      this.data.screenWidth = geom.width;
+      this.data.screenHeight = geom.height;
+      this.screenGeometry.width = geom.width;
+      this.screenGeometry.height = geom.height;
+      this.save();
+      this.notify();
+    }
   }
 
   public setScreenDimensions(widthMeters: number, heightMeters: number): void {
@@ -92,10 +148,14 @@ export class CalibrationManager {
 
   public resetToDefaults(): void {
     this.data = JSON.parse(JSON.stringify(DEFAULT_CALIBRATION_DATA));
-    this.screenGeometry.width = this.data.screenWidth;
-    this.screenGeometry.height = this.data.screenHeight;
-    this.save();
-    this.notify();
+    if (typeof window !== 'undefined' && window.innerWidth > 0 && window.innerHeight > 0) {
+      this.updateViewport(window.innerWidth, window.innerHeight);
+    } else {
+      this.screenGeometry.width = this.data.screenWidth;
+      this.screenGeometry.height = this.data.screenHeight;
+      this.save();
+      this.notify();
+    }
   }
 
   public subscribe(cb: (data: CalibrationData) => void): () => void {
