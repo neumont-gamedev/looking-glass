@@ -70,6 +70,13 @@ export class VectorFilter {
     }
   }
 
+  public getConfig(): { minCutoff: number; beta: number } {
+    return {
+      minCutoff: this.filterX.minCutoff,
+      beta: this.filterX.beta
+    };
+  }
+
   public filter(vec: Vector3D, timestampSeconds: number): Vector3D {
     return {
       x: this.filterX.filter(vec.x, timestampSeconds),

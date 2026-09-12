@@ -15,6 +15,7 @@ import { TrackingStatus, ViewerPose, FaceTrackingResult } from '../tracking/Trac
 import { StatusPanel } from '../ui/StatusPanel';
 import { CalibrationPanel } from '../ui/CalibrationPanel';
 import { Controls, InputMode } from '../ui/Controls';
+import { SettingsManager } from '../settings/SettingsManager';
 import { CoordinateMapper } from '../math/CoordinateMapper';
 import { FpsCounter } from '../utils/Debug';
 import { SceneType } from '../rendering/DemoScene';
@@ -25,6 +26,7 @@ export class LookingGlassApp {
   private sceneManager: SceneManager;
   private perspectiveController: PerspectiveController;
   private calibrationManager: CalibrationManager;
+  private settingsManager: SettingsManager;
 
   private faceTracker: FaceTracker;
   private poseEstimator: HeadPoseEstimator;
@@ -51,8 +53,10 @@ export class LookingGlassApp {
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
 
-    // 1. Initialize Calibration & Geometry
+    // 1. Initialize Calibration, Settings & Geometry
     this.calibrationManager = new CalibrationManager();
+    this.settingsManager = new SettingsManager();
+    const settings = this.settingsManager.getSettings();
     const screenGeometry = this.calibrationManager.getScreenGeometry();
 
     // 2. Initialize Rendering Subsystems
@@ -61,11 +65,28 @@ export class LookingGlassApp {
     this.perspectiveController = new PerspectiveController(screenGeometry);
     this.perspectiveController.setReferenceDistance(this.calibrationManager.getData().viewingDistance);
 
+    // Apply persisted settings to PerspectiveController
+    this.perspectiveController.setProjectionMode(settings.projectionMode);
+    this.perspectiveController.setDepthMode(settings.depthMode);
+    this.perspectiveController.setLookaheadMs(settings.lookaheadMs);
+    this.perspectiveController.setSmoothTimeMs(settings.smoothTimeMs);
+    this.perspectiveController.setDeadbandEnabled(settings.deadbandEnabled);
+    this.perspectiveController.filter.updateConfig({ minCutoff: settings.minCutoff, beta: settings.beta });
+
+    // Apply persisted scene if not default Aquarium
+    if (settings.sceneType !== SceneType.Aquarium) {
+      this.sceneManager.setSceneType(settings.sceneType, screenGeometry);
+    }
+    this.sceneManager.demoScene.setAxesVisible(settings.debugHudVisible);
+
     // 3. Initialize Tracking Subsystems
     this.faceTracker = new FaceTracker();
     this.poseEstimator = new HeadPoseEstimator(60.0);
     this.debugView = new TrackingDebugView();
     this.debugView.attachVideo(this.faceTracker.getVideoElement());
+    this.debugView.setVisible(settings.webcamPipVisible);
+
+    this.inputMode = settings.inputMode;
 
     // 4. Initialize UI Subsystems
     this.statusPanel = new StatusPanel();
@@ -90,6 +111,7 @@ export class LookingGlassApp {
       this.debugView,
       this.calibrationPanel,
       this.calibrationManager,
+      this.settingsManager,
       {
         onInputModeChange: (mode) => this.handleInputModeChange(mode),
         onSceneChange: (sceneType) => this.handleSceneChange(sceneType),
@@ -100,6 +122,7 @@ export class LookingGlassApp {
             const screen = this.calibrationManager.getScreenGeometry();
             this.sceneManager.setSceneType(SceneType.Aquarium, screen);
             this.controls.setScene(SceneType.Aquarium);
+            this.settingsManager.updateSettings({ sceneType: SceneType.Aquarium });
           }
           return await this.sceneManager.aquariumScene.addCustomFish(source, count, options);
         },
@@ -283,6 +306,7 @@ export class LookingGlassApp {
 
   private handleInputModeChange(mode: InputMode): void {
     this.inputMode = mode;
+    this.settingsManager.updateSettings({ inputMode: mode });
 
     if (mode === InputMode.Webcam) {
       this.faceTracker.startCamera().then(() => {
@@ -309,6 +333,7 @@ export class LookingGlassApp {
     this.sceneManager.setSceneType(sceneType, screen);
     this.sceneManager.demoScene.setAxesVisible(this.controls.getIsDebugHudVisible());
     this.controls.setScene(sceneType);
+    this.settingsManager.updateSettings({ sceneType });
   }
 
   /**
@@ -319,14 +344,28 @@ export class LookingGlassApp {
     this.isRunning = true;
     this.lastFrameTime = performance.now();
 
-    // Start Webcam tracking by default
-    this.faceTracker.initialize().then(() => {
-      this.controls.setCameraActiveState(true);
-    }).catch((err) => {
-      console.warn('[LookingGlassApp] Default camera init error, falling back to mouse:', err);
-      this.controls.setInputMode(InputMode.Mouse);
+    const settings = this.settingsManager.getSettings();
+    if (settings.inputMode === InputMode.Webcam) {
+      if (settings.isCameraActive) {
+        this.statusPanel.setStatus(TrackingStatus.Initializing, 'Starting Webcam Tracking...');
+        this.faceTracker.initialize().then(() => {
+          this.controls.setCameraActiveState(true);
+        }).catch((err) => {
+          console.warn('[LookingGlassApp] Default camera init error, falling back to mouse:', err);
+          this.controls.setInputMode(InputMode.Mouse);
+          this.controls.setCameraActiveState(false);
+        });
+      } else {
+        this.statusPanel.setStatus(TrackingStatus.CameraOff, 'Camera Off');
+        this.controls.setCameraActiveState(false);
+      }
+    } else if (settings.inputMode === InputMode.Mouse) {
+      this.statusPanel.setStatus(TrackingStatus.FallbackMouse);
       this.controls.setCameraActiveState(false);
-    });
+    } else if (settings.inputMode === InputMode.Auto) {
+      this.statusPanel.setStatus(TrackingStatus.FallbackAuto);
+      this.controls.setCameraActiveState(false);
+    }
 
     this.renderLoop();
   }

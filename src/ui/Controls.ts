@@ -12,12 +12,9 @@ import { TrackingDebugView } from '../tracking/TrackingDebugView';
 import { SceneType } from '../rendering/DemoScene';
 import { CalibrationManager } from '../calibration/CalibrationManager';
 import { CustomFishOptions } from '../rendering/aquarium/CustomModelLoader';
+import { SettingsManager, InputMode, AppSettings } from '../settings/SettingsManager';
 
-export enum InputMode {
-  Webcam = 'Webcam',
-  Mouse = 'Mouse',
-  Auto = 'Auto'
-}
+export { InputMode } from '../settings/SettingsManager';
 
 export interface ControlsCallbacks {
   onInputModeChange: (mode: InputMode) => void;
@@ -39,6 +36,7 @@ export class Controls {
   private debugView: TrackingDebugView;
   private calibrationPanel: CalibrationPanel;
   private calibrationManager: CalibrationManager;
+  private settingsManager: SettingsManager;
   private callbacks: ControlsCallbacks;
 
   constructor(
@@ -46,13 +44,20 @@ export class Controls {
     debugView: TrackingDebugView,
     calibrationPanel: CalibrationPanel,
     calibrationManager: CalibrationManager,
+    settingsManager: SettingsManager,
     callbacks: ControlsCallbacks
   ) {
     this.perspectiveController = perspectiveController;
     this.debugView = debugView;
     this.calibrationPanel = calibrationPanel;
     this.calibrationManager = calibrationManager;
+    this.settingsManager = settingsManager;
     this.callbacks = callbacks;
+
+    const initialSettings = this.settingsManager.getSettings();
+    this.currentInputMode = initialSettings.inputMode;
+    this.isCameraActive = initialSettings.isCameraActive;
+    this.isDebugHudVisible = initialSettings.debugHudVisible;
 
     this.topBar = document.createElement('header');
     this.topBar.className = 'hud-topbar';
@@ -70,6 +75,7 @@ export class Controls {
 
   public setInputMode(mode: InputMode): void {
     this.currentInputMode = mode;
+    this.settingsManager.updateSettings({ inputMode: mode });
     const select = this.settingsDrawer.querySelector('#input-mode-select') as HTMLSelectElement;
     if (select) select.value = mode;
     this.callbacks.onInputModeChange(mode);
@@ -142,6 +148,10 @@ export class Controls {
     this.debugHudBoxEl = this.topBar.querySelector('#debug-hud-box');
     this.feedFishBtn = this.topBar.querySelector('#btn-feed-fish');
 
+    if (this.debugHudBoxEl) {
+      this.debugHudBoxEl.style.display = this.isDebugHudVisible ? 'flex' : 'none';
+    }
+
     this.topBar.querySelector('#btn-feed-fish')?.addEventListener('click', () => {
       if (this.callbacks.onFeedFish) this.callbacks.onFeedFish();
     });
@@ -169,10 +179,11 @@ export class Controls {
 
   public setDebugHudVisible(visible: boolean): boolean {
     this.isDebugHudVisible = visible;
+    this.settingsManager.updateSettings({ debugHudVisible: visible });
     if (this.debugHudBoxEl) {
       this.debugHudBoxEl.style.display = this.isDebugHudVisible ? 'flex' : 'none';
     }
-    const debugHudToggle = this.settingsDrawer.querySelector('#toggle-debug-hud') as HTMLInputElement;
+    const debugHudToggle = this.settingsDrawer?.querySelector('#toggle-debug-hud') as HTMLInputElement;
     if (debugHudToggle && debugHudToggle.checked !== this.isDebugHudVisible) {
       debugHudToggle.checked = this.isDebugHudVisible;
     }
@@ -274,6 +285,32 @@ export class Controls {
 
 
   private buildDrawer(): void {
+    const settings = this.settingsManager.getSettings();
+
+    const isWebcamSelected = settings.inputMode === InputMode.Webcam ? 'selected' : '';
+    const isMouseSelected = settings.inputMode === InputMode.Mouse ? 'selected' : '';
+    const isAutoSelected = settings.inputMode === InputMode.Auto ? 'selected' : '';
+
+    const isCamOn = settings.isCameraActive;
+    const camBtnText = isCamOn ? '🟢 Camera On (Click to Turn Off)' : '🔴 Camera Off (Click to Turn On)';
+    const camBtnClass = isCamOn ? 'btn-camera-toggle btn-camera-on' : 'btn-camera-toggle btn-camera-off';
+    const camBtnTitle = isCamOn ? 'Click to turn off camera' : 'Click to turn on camera';
+
+    const isAccurateProj = settings.projectionMode === ProjectionMode.Accurate ? 'selected' : '';
+    const isSimpleProj = settings.projectionMode === ProjectionMode.Simple ? 'selected' : '';
+
+    const isNaturalDepth = settings.depthMode === 'natural' ? 'selected' : '';
+    const isApertureDepth = settings.depthMode === 'aperture' ? 'selected' : '';
+
+    const isAquarium = settings.sceneType === SceneType.Aquarium ? 'selected' : '';
+    const isDiorama = settings.sceneType === SceneType.Diorama ? 'selected' : '';
+    const isDebug = settings.sceneType === SceneType.Debug ? 'selected' : '';
+
+    const isAxisPlusX = settings.customFishForwardAxis === '+X' ? 'selected' : '';
+    const isAxisPlusZ = settings.customFishForwardAxis === '+Z' ? 'selected' : '';
+    const isAxisMinusZ = settings.customFishForwardAxis === '-Z' ? 'selected' : '';
+    const isAxisMinusX = settings.customFishForwardAxis === '-X' ? 'selected' : '';
+
     this.settingsDrawer.innerHTML = `
       <div class="drawer-header">
         <h3>Configuration & Settings</h3>
@@ -284,17 +321,17 @@ export class Controls {
         <div class="setting-group">
           <label for="input-mode-select">Input Control Source:</label>
           <select id="input-mode-select">
-            <option value="${InputMode.Webcam}">📷 Webcam Head Tracking</option>
-            <option value="${InputMode.Mouse}">🖱️ Mouse Simulation Mode</option>
-            <option value="${InputMode.Auto}">🔄 Auto Demo Orbit Mode</option>
+            <option value="${InputMode.Webcam}" ${isWebcamSelected}>📷 Webcam Head Tracking</option>
+            <option value="${InputMode.Mouse}" ${isMouseSelected}>🖱️ Mouse Simulation Mode</option>
+            <option value="${InputMode.Auto}" ${isAutoSelected}>🔄 Auto Demo Orbit Mode</option>
           </select>
         </div>
 
         <!-- Camera Power Toggle -->
         <div class="setting-group">
           <label>Camera Tracking Power:</label>
-          <button id="btn-toggle-camera" class="btn-camera-toggle btn-camera-on" title="Turn camera on or off">
-            🟢 Camera On (Click to Turn Off)
+          <button id="btn-toggle-camera" class="${camBtnClass}" title="${camBtnTitle}">
+            ${camBtnText}
           </button>
           <small style="color: var(--text-secondary); font-size: 0.72rem; line-height: 1.3; display: block; margin-top: 5px;">
             Turning off releases your webcam device and powers down the camera LED.
@@ -305,8 +342,8 @@ export class Controls {
         <div class="setting-group">
           <label for="proj-mode-select">Perspective Projection:</label>
           <select id="proj-mode-select">
-            <option value="${ProjectionMode.Accurate}">Off-Axis Asymmetric Window (Accurate)</option>
-            <option value="${ProjectionMode.Simple}">Simple Camera Translation (LookAt)</option>
+            <option value="${ProjectionMode.Accurate}" ${isAccurateProj}>Off-Axis Asymmetric Window (Accurate)</option>
+            <option value="${ProjectionMode.Simple}" ${isSimpleProj}>Simple Camera Translation (LookAt)</option>
           </select>
         </div>
 
@@ -314,8 +351,8 @@ export class Controls {
         <div class="setting-group">
           <label for="depth-mode-select">Head Depth (Forward / Back) Behavior:</label>
           <select id="depth-mode-select">
-            <option value="natural" selected>🔍 Natural Approach (Objects enlarge as you lean in)</option>
-            <option value="aperture">🪟 Fixed Aperture (Strict window aperture)</option>
+            <option value="natural" ${isNaturalDepth}>🔍 Natural Approach (Objects enlarge as you lean in)</option>
+            <option value="aperture" ${isApertureDepth}>🪟 Fixed Aperture (Strict window aperture)</option>
           </select>
         </div>
 
@@ -323,9 +360,9 @@ export class Controls {
         <div class="setting-group">
           <label for="scene-select">Virtual 3D Scene:</label>
           <select id="scene-select">
-            <option value="${SceneType.Aquarium}" selected>🐠 Virtual Aquarium</option>
-            <option value="${SceneType.Diorama}">📦 Diorama Shadow Box</option>
-            <option value="${SceneType.Debug}">📐 Debug Calibration Grids</option>
+            <option value="${SceneType.Aquarium}" ${isAquarium}>🐠 Virtual Aquarium</option>
+            <option value="${SceneType.Diorama}" ${isDiorama}>📦 Diorama Shadow Box</option>
+            <option value="${SceneType.Debug}" ${isDebug}>📐 Debug Calibration Grids</option>
           </select>
         </div>
 
@@ -358,17 +395,17 @@ export class Controls {
           </div>
 
           <div class="slider-row">
-            <label>Model Size: <span id="val-custom-fish-scale">4.5</span> cm</label>
-            <input type="range" id="slider-custom-fish-scale" min="2.0" max="15.0" step="0.5" value="4.5" />
+            <label>Model Size: <span id="val-custom-fish-scale">${settings.customFishScaleCm.toFixed(1)}</span> cm</label>
+            <input type="range" id="slider-custom-fish-scale" min="2.0" max="15.0" step="0.5" value="${settings.customFishScaleCm}" />
           </div>
 
           <div class="slider-row">
             <label>Forward Axis:</label>
             <select id="select-custom-fish-axis" style="padding: 3px 8px; font-size: 0.75rem; width: auto; background: var(--bg-surface); color: var(--text-primary); border: 1px solid var(--bg-surface-border); border-radius: 4px;">
-              <option value="+X" selected>+X (Default)</option>
-              <option value="+Z">+Z (Blender standard)</option>
-              <option value="-Z">-Z</option>
-              <option value="-X">-X</option>
+              <option value="+X" ${isAxisPlusX}>+X (Default)</option>
+              <option value="+Z" ${isAxisPlusZ}>+Z (Blender standard)</option>
+              <option value="-Z" ${isAxisMinusZ}>-Z</option>
+              <option value="-X" ${isAxisMinusX}>-X</option>
             </select>
           </div>
 
@@ -379,15 +416,15 @@ export class Controls {
         <div class="setting-group">
           <h4>Motion Smoothing & Predictive Tracking</h4>
           <div class="slider-row">
-            <label>Predictive Lookahead: <span id="val-lookahead">${this.perspectiveController.getLookaheadMs()}</span> ms</label>
-            <input type="range" id="slider-lookahead" min="0" max="80" step="5" value="${this.perspectiveController.getLookaheadMs()}" />
+            <label>Predictive Lookahead: <span id="val-lookahead">${settings.lookaheadMs}</span> ms</label>
+            <input type="range" id="slider-lookahead" min="0" max="80" step="5" value="${settings.lookaheadMs}" />
           </div>
           <div class="slider-row">
-            <label>Translation Smoothing: <span id="val-smooth-time">${this.perspectiveController.getSmoothTimeMs()}</span> ms</label>
-            <input type="range" id="slider-smooth-time" min="15" max="120" step="5" value="${this.perspectiveController.getSmoothTimeMs()}" />
+            <label>Translation Smoothing: <span id="val-smooth-time">${settings.smoothTimeMs}</span> ms</label>
+            <input type="range" id="slider-smooth-time" min="15" max="120" step="5" value="${settings.smoothTimeMs}" />
           </div>
           <label class="checkbox-row" style="margin-top: 8px;">
-            <input type="checkbox" id="toggle-deadband" ${this.perspectiveController.isDeadbandEnabled() ? 'checked' : ''} />
+            <input type="checkbox" id="toggle-deadband" ${settings.deadbandEnabled ? 'checked' : ''} />
             <span>Stationary Anti-Jitter Lock (Freezes tremor when still)</span>
           </label>
           <small style="color: var(--text-secondary); font-size: 0.72rem; line-height: 1.3; display: block; margin-top: 6px;">
@@ -399,12 +436,12 @@ export class Controls {
         <div class="setting-group">
           <h4>One Euro Filter Tuning</h4>
           <div class="slider-row">
-            <label>Min Cutoff (Hz): <span id="val-min-cutoff">1.0</span></label>
-            <input type="range" id="slider-min-cutoff" min="0.2" max="4.0" step="0.1" value="1.0" />
+            <label>Min Cutoff (Hz): <span id="val-min-cutoff">${settings.minCutoff.toFixed(1)}</span></label>
+            <input type="range" id="slider-min-cutoff" min="0.2" max="4.0" step="0.1" value="${settings.minCutoff}" />
           </div>
           <div class="slider-row">
-            <label>Beta (Responsiveness): <span id="val-beta">2.2</span></label>
-            <input type="range" id="slider-beta" min="0.2" max="8.0" step="0.1" value="2.2" />
+            <label>Beta (Responsiveness): <span id="val-beta">${settings.beta.toFixed(1)}</span></label>
+            <input type="range" id="slider-beta" min="0.2" max="8.0" step="0.1" value="${settings.beta}" />
           </div>
           <small style="color: var(--text-secondary); font-size: 0.72rem; line-height: 1.3; display: block; margin-top: 4px;">
             Higher Beta eliminates motion lag during head movement. Min Cutoff stabilizes stationary jitter.
@@ -424,13 +461,20 @@ export class Controls {
         <div class="setting-group">
           <h4>Visual Overlays</h4>
           <label class="checkbox-row">
-            <input type="checkbox" id="toggle-debug-hud" checked />
+            <input type="checkbox" id="toggle-debug-hud" ${settings.debugHudVisible ? 'checked' : ''} />
             <span>Show Debug Telemetry HUD & Origin Axes (Hot-key: ~)</span>
           </label>
           <label class="checkbox-row">
-            <input type="checkbox" id="toggle-webcam-pip" />
+            <input type="checkbox" id="toggle-webcam-pip" ${settings.webcamPipVisible ? 'checked' : ''} />
             <span>Show Webcam PIP & Face Landmarks</span>
           </label>
+        </div>
+
+        <!-- Reset Settings to Defaults -->
+        <div class="setting-group" style="margin-top: 14px; border-top: 1px solid var(--bg-surface-border); padding-top: 12px;">
+          <button id="btn-reset-settings" class="btn" style="width: 100%; border: 1px solid rgba(239, 68, 68, 0.4); color: #f87171; background: rgba(239, 68, 68, 0.08); cursor: pointer; padding: 7px 12px; font-size: 0.78rem; transition: background 0.2s;">
+            ↺ Reset Settings to Defaults
+          </button>
         </div>
 
         <!-- Privacy notice as specified in AGENTS.md -->
@@ -449,6 +493,7 @@ export class Controls {
     inputSelect?.addEventListener('change', (e) => {
       const mode = (e.target as HTMLSelectElement).value as InputMode;
       this.currentInputMode = mode;
+      this.settingsManager.updateSettings({ inputMode: mode });
       this.callbacks.onInputModeChange(mode);
     });
 
@@ -472,6 +517,7 @@ export class Controls {
     projSelect?.addEventListener('change', (e) => {
       const mode = (e.target as HTMLSelectElement).value as ProjectionMode;
       this.perspectiveController.setProjectionMode(mode);
+      this.settingsManager.updateSettings({ projectionMode: mode });
     });
 
     // Head Depth Mode change (Natural Approach vs Fixed Aperture)
@@ -479,6 +525,7 @@ export class Controls {
     depthSelect?.addEventListener('change', (e) => {
       const mode = (e.target as HTMLSelectElement).value as 'natural' | 'aperture';
       this.perspectiveController.setDepthMode(mode);
+      this.settingsManager.updateSettings({ depthMode: mode });
     });
 
     // Scene select
@@ -486,6 +533,7 @@ export class Controls {
     sceneSelect?.addEventListener('change', (e) => {
       const type = (e.target as HTMLSelectElement).value as SceneType;
       this.setScene(type);
+      this.settingsManager.updateSettings({ sceneType: type });
       this.callbacks.onSceneChange(type);
     });
 
@@ -495,11 +543,17 @@ export class Controls {
     fishScaleSlider?.addEventListener('input', (e) => {
       const val = parseFloat((e.target as HTMLInputElement).value);
       if (fishScaleVal) fishScaleVal.textContent = val.toFixed(1);
+      this.settingsManager.updateSettings({ customFishScaleCm: val });
+    });
+
+    const axisSelect = this.settingsDrawer.querySelector('#select-custom-fish-axis') as HTMLSelectElement;
+    axisSelect?.addEventListener('change', (e) => {
+      const forwardAxis = (e.target as HTMLSelectElement).value as '+X' | '-X' | '+Z' | '-Z';
+      this.settingsManager.updateSettings({ customFishForwardAxis: forwardAxis });
     });
 
     const getCustomFishOptions = (): CustomFishOptions => {
       const scaleCm = fishScaleSlider ? parseFloat(fishScaleSlider.value) : 4.5;
-      const axisSelect = this.settingsDrawer.querySelector('#select-custom-fish-axis') as HTMLSelectElement;
       const forwardAxis = (axisSelect?.value ?? '+X') as '+X' | '-X' | '+Z' | '-Z';
       return {
         targetLength: scaleCm / 100, // convert cm to meters
@@ -571,6 +625,7 @@ export class Controls {
       const val = parseInt((e.target as HTMLInputElement).value, 10);
       if (lookaheadVal) lookaheadVal.textContent = String(val);
       this.perspectiveController.setLookaheadMs(val);
+      this.settingsManager.updateSettings({ lookaheadMs: val });
     });
 
     // Translation Smoothing Time (SmoothDamp) slider
@@ -580,12 +635,15 @@ export class Controls {
       const val = parseInt((e.target as HTMLInputElement).value, 10);
       if (smoothTimeVal) smoothTimeVal.textContent = String(val);
       this.perspectiveController.setSmoothTimeMs(val);
+      this.settingsManager.updateSettings({ smoothTimeMs: val });
     });
 
     // Stationary Anti-Jitter Deadband toggle
     const deadbandToggle = this.settingsDrawer.querySelector('#toggle-deadband') as HTMLInputElement;
     deadbandToggle?.addEventListener('change', (e) => {
-      this.perspectiveController.setDeadbandEnabled((e.target as HTMLInputElement).checked);
+      const checked = (e.target as HTMLInputElement).checked;
+      this.perspectiveController.setDeadbandEnabled(checked);
+      this.settingsManager.updateSettings({ deadbandEnabled: checked });
     });
 
     // Filter tuning sliders
@@ -595,6 +653,7 @@ export class Controls {
       const val = parseFloat((e.target as HTMLInputElement).value);
       if (minCutoffVal) minCutoffVal.textContent = val.toFixed(1);
       this.perspectiveController.filter.updateConfig({ minCutoff: val });
+      this.settingsManager.updateSettings({ minCutoff: val });
     });
 
     const betaSlider = this.settingsDrawer.querySelector('#slider-beta') as HTMLInputElement;
@@ -603,6 +662,7 @@ export class Controls {
       const val = parseFloat((e.target as HTMLInputElement).value);
       if (betaVal) betaVal.textContent = val.toFixed(1);
       this.perspectiveController.filter.updateConfig({ beta: val });
+      this.settingsManager.updateSettings({ beta: val });
     });
 
     // Invert horizontal toggle
@@ -626,16 +686,88 @@ export class Controls {
     // Webcam PIP toggle
     const pipToggle = this.settingsDrawer.querySelector('#toggle-webcam-pip') as HTMLInputElement;
     pipToggle?.addEventListener('change', (e) => {
-      this.debugView.setVisible((e.target as HTMLInputElement).checked);
+      const checked = (e.target as HTMLInputElement).checked;
+      this.debugView.setVisible(checked);
+      this.settingsManager.updateSettings({ webcamPipVisible: checked });
     });
 
-    // Initialize scene-dependent UI elements (default is Aquarium)
-    this.setScene(SceneType.Aquarium);
+    // Reset Settings to Defaults button
+    const resetSettingsBtn = this.settingsDrawer.querySelector('#btn-reset-settings') as HTMLButtonElement;
+    resetSettingsBtn?.addEventListener('click', () => {
+      const defaults = this.settingsManager.resetToDefaults();
+      this.syncUiFromSettings(defaults);
+      this.perspectiveController.setProjectionMode(defaults.projectionMode);
+      this.perspectiveController.setDepthMode(defaults.depthMode);
+      this.perspectiveController.setLookaheadMs(defaults.lookaheadMs);
+      this.perspectiveController.setSmoothTimeMs(defaults.smoothTimeMs);
+      this.perspectiveController.setDeadbandEnabled(defaults.deadbandEnabled);
+      this.perspectiveController.filter.updateConfig({ minCutoff: defaults.minCutoff, beta: defaults.beta });
+      this.callbacks.onSceneChange(defaults.sceneType);
+      this.callbacks.onInputModeChange(defaults.inputMode);
+    });
+
+    // Initialize scene-dependent UI elements from persisted settings
+    this.setScene(settings.sceneType);
+  }
+
+  public syncUiFromSettings(settings: AppSettings): void {
+    const inputSelect = this.settingsDrawer.querySelector('#input-mode-select') as HTMLSelectElement;
+    if (inputSelect) inputSelect.value = settings.inputMode;
+    this.currentInputMode = settings.inputMode;
+
+    this.setCameraActiveState(settings.isCameraActive);
+
+    const projSelect = this.settingsDrawer.querySelector('#proj-mode-select') as HTMLSelectElement;
+    if (projSelect) projSelect.value = settings.projectionMode;
+
+    const depthSelect = this.settingsDrawer.querySelector('#depth-mode-select') as HTMLSelectElement;
+    if (depthSelect) depthSelect.value = settings.depthMode;
+
+    const sceneSelect = this.settingsDrawer.querySelector('#scene-select') as HTMLSelectElement;
+    if (sceneSelect) sceneSelect.value = settings.sceneType;
+    this.setScene(settings.sceneType);
+
+    const fishScaleSlider = this.settingsDrawer.querySelector('#slider-custom-fish-scale') as HTMLInputElement;
+    const fishScaleVal = this.settingsDrawer.querySelector('#val-custom-fish-scale');
+    if (fishScaleSlider) fishScaleSlider.value = String(settings.customFishScaleCm);
+    if (fishScaleVal) fishScaleVal.textContent = settings.customFishScaleCm.toFixed(1);
+
+    const axisSelect = this.settingsDrawer.querySelector('#select-custom-fish-axis') as HTMLSelectElement;
+    if (axisSelect) axisSelect.value = settings.customFishForwardAxis;
+
+    const lookaheadSlider = this.settingsDrawer.querySelector('#slider-lookahead') as HTMLInputElement;
+    const lookaheadVal = this.settingsDrawer.querySelector('#val-lookahead');
+    if (lookaheadSlider) lookaheadSlider.value = String(settings.lookaheadMs);
+    if (lookaheadVal) lookaheadVal.textContent = String(settings.lookaheadMs);
+
+    const smoothTimeSlider = this.settingsDrawer.querySelector('#slider-smooth-time') as HTMLInputElement;
+    const smoothTimeVal = this.settingsDrawer.querySelector('#val-smooth-time');
+    if (smoothTimeSlider) smoothTimeSlider.value = String(settings.smoothTimeMs);
+    if (smoothTimeVal) smoothTimeVal.textContent = String(settings.smoothTimeMs);
+
+    const deadbandToggle = this.settingsDrawer.querySelector('#toggle-deadband') as HTMLInputElement;
+    if (deadbandToggle) deadbandToggle.checked = settings.deadbandEnabled;
+
+    const minCutoffSlider = this.settingsDrawer.querySelector('#slider-min-cutoff') as HTMLInputElement;
+    const minCutoffVal = this.settingsDrawer.querySelector('#val-min-cutoff');
+    if (minCutoffSlider) minCutoffSlider.value = String(settings.minCutoff);
+    if (minCutoffVal) minCutoffVal.textContent = settings.minCutoff.toFixed(1);
+
+    const betaSlider = this.settingsDrawer.querySelector('#slider-beta') as HTMLInputElement;
+    const betaVal = this.settingsDrawer.querySelector('#val-beta');
+    if (betaSlider) betaSlider.value = String(settings.beta);
+    if (betaVal) betaVal.textContent = settings.beta.toFixed(1);
+
+    this.setDebugHudVisible(settings.debugHudVisible);
+    this.debugView.setVisible(settings.webcamPipVisible);
+    const pipToggle = this.settingsDrawer.querySelector('#toggle-webcam-pip') as HTMLInputElement;
+    if (pipToggle) pipToggle.checked = settings.webcamPipVisible;
   }
 
   public setCameraActiveState(active: boolean): void {
     this.isCameraActive = active;
-    const btn = this.settingsDrawer.querySelector('#btn-toggle-camera') as HTMLButtonElement;
+    this.settingsManager.updateSettings({ isCameraActive: active });
+    const btn = this.settingsDrawer?.querySelector('#btn-toggle-camera') as HTMLButtonElement;
     if (!btn) return;
 
     if (active) {

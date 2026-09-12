@@ -128,6 +128,14 @@ export class PerspectiveController {
     return this.predictor.config.enableDeadband;
   }
 
+  public getMinCutoff(): number {
+    return this.filter.getConfig().minCutoff;
+  }
+
+  public getBeta(): number {
+    return this.filter.getConfig().beta;
+  }
+
   /**
    * Updates target pose from real-time tracking.
    */
