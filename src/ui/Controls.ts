@@ -351,8 +351,8 @@ export class Controls {
         <div class="setting-group">
           <label for="proj-mode-select">Perspective Projection:</label>
           <select id="proj-mode-select">
-            <option value="${ProjectionMode.Accurate}" ${isAccurateProj}>Off-Axis Asymmetric Window (Accurate)</option>
-            <option value="${ProjectionMode.Simple}" ${isSimpleProj}>Simple Camera Translation (LookAt)</option>
+            <option value="${ProjectionMode.Accurate}" ${isAccurateProj}>Off-Axis Asymmetric Window</option>
+            <option value="${ProjectionMode.Simple}" ${isSimpleProj}>Camera Translation</option>
           </select>
         </div>
 
