@@ -11,6 +11,7 @@ import { PerspectiveController, ProjectionMode } from '../rendering/PerspectiveC
 import { TrackingDebugView } from '../tracking/TrackingDebugView';
 import { SceneType } from '../rendering/DemoScene';
 import { CalibrationManager } from '../calibration/CalibrationManager';
+import { ViewerPose } from '../tracking/TrackingState';
 import { SettingsManager, InputMode, AppSettings, computeSmoothingParameters, getSmoothnessLabel } from '../settings/SettingsManager';
 
 export { InputMode } from '../settings/SettingsManager';
@@ -20,6 +21,7 @@ export interface ControlsCallbacks {
   onSceneChange: (sceneType: SceneType) => void;
   onFeedFish?: () => void;
   onToggleDebugHud?: (visible: boolean) => void;
+  getCurrentRawPose?: () => ViewerPose | null;
 }
 
 export class Controls {
@@ -135,7 +137,7 @@ export class Controls {
       <div class="topbar-actions">
         <button class="btn btn-hud" id="btn-feed-fish">Feed Fish 🦐</button>
         <button class="btn btn-hud btn-icon" id="btn-fullscreen" title="Toggle Fullscreen">⛶</button>
-        <button class="btn btn-hud btn-icon" id="btn-gear" title="Calibration Controls (Window & Display)">⚙</button>
+        <button class="btn btn-hud btn-sm" id="btn-calibrate" title="Display Calibration (Window, Depth, Sensitivity)">⚙ <span>Calibrate</span></button>
         <button class="btn btn-hud btn-sm" id="btn-toggle-settings" title="Settings (Scenes, Tracking, Filters, Debug)">
           <svg class="btn-svg-icon" viewBox="0 0 24 24">
             <line x1="4" y1="21" x2="4" y2="14"></line>
@@ -178,12 +180,15 @@ export class Controls {
       }
     });
 
-    this.topBar.querySelector('#btn-gear')?.addEventListener('click', () => {
+    const openCalibrationHandler = () => {
       if (this.isDrawerOpen) {
         this.closeDrawer();
       }
       this.calibrationPanel.toggle();
-    });
+    };
+
+    this.topBar.querySelector('#btn-calibrate')?.addEventListener('click', openCalibrationHandler);
+    this.topBar.querySelector('#btn-gear')?.addEventListener('click', openCalibrationHandler);
 
     this.topBar.querySelector('#btn-toggle-settings')?.addEventListener('click', () => {
       if (this.calibrationPanel.getIsOpen()) {
@@ -309,6 +314,7 @@ export class Controls {
 
   private buildDrawer(): void {
     const settings = this.settingsManager.getSettings();
+    const calibData = this.calibrationManager.getData();
 
     const isWebcamSelected = settings.inputMode === InputMode.Webcam ? 'selected' : '';
     const isMouseSelected = settings.inputMode === InputMode.Mouse ? 'selected' : '';
@@ -373,11 +379,28 @@ export class Controls {
           </small>
         </div>
 
-        <!-- Open Calibration shortcut -->
+        <!-- Screen & Calibration Section -->
         <div class="setting-group" style="margin-top: 14px; border-top: 1px solid var(--bg-surface-border); padding-top: 12px;">
-          <button id="btn-drawer-open-calibration" class="btn" style="width: 100%; border: 1px solid rgba(0, 229, 255, 0.4); color: var(--accent-cyan); background: rgba(0, 229, 255, 0.08); cursor: pointer; padding: 7px 12px; font-size: 0.78rem; transition: background 0.2s;">
-            ⚙ Open Display Calibration
-          </button>
+          <h4>Screen & Calibration</h4>
+          <div style="font-size: 0.76rem; color: var(--text-secondary); margin-bottom: 8px; line-height: 1.45; background: rgba(0, 0, 0, 0.2); padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.05);">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+              <span>Display Window:</span>
+              <strong id="drawer-calib-dim" style="color: var(--accent-cyan); font-family: var(--font-mono);">${(calibData.screenWidth * 100).toFixed(1)} × ${(calibData.screenHeight * 100).toFixed(1)} cm</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+              <span>Viewing Distance:</span>
+              <strong id="drawer-calib-dist" style="color: var(--accent-cyan); font-family: var(--font-mono);">${(calibData.viewingDistance * 100).toFixed(0)} cm</strong>
+            </div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <button id="btn-drawer-recalibrate-center" class="btn" style="width: 100%; border: 1px solid rgba(0, 229, 255, 0.4); color: var(--accent-cyan); background: rgba(0, 229, 255, 0.08); cursor: pointer; padding: 7px 12px; font-size: 0.78rem; transition: background 0.2s;">
+              🎯 Set Center Position
+            </button>
+            <button id="btn-drawer-open-calibration" class="btn btn-primary" style="width: 100%; cursor: pointer; padding: 7px 12px; font-size: 0.78rem;">
+              ⚙ Open Guided Calibration Window
+            </button>
+          </div>
+          <div id="drawer-center-feedback" class="status-note" style="display: none; margin-top: 6px; font-size: 0.75rem; color: #10b981; font-weight: 500;"></div>
         </div>
 
         <!-- Reset Settings to Defaults -->
@@ -398,9 +421,38 @@ export class Controls {
       this.closeDrawer();
     });
 
+    this.settingsDrawer.querySelector('#btn-drawer-recalibrate-center')?.addEventListener('click', () => {
+      const raw = this.callbacks.getCurrentRawPose ? this.callbacks.getCurrentRawPose() : null;
+      if (raw) {
+        this.calibrationManager.setNeutralOrigin(raw.x, raw.y, raw.z);
+      } else {
+        this.calibrationManager.setNeutralOrigin(0, 0, this.calibrationManager.getData().viewingDistance);
+      }
+      const feedback = this.settingsDrawer.querySelector('#drawer-center-feedback') as HTMLElement;
+      if (feedback) {
+        feedback.textContent = '✓ Neutral center calibrated successfully!';
+        feedback.style.display = 'block';
+        setTimeout(() => {
+          if (feedback) feedback.style.display = 'none';
+        }, 3000);
+      }
+    });
+
     this.settingsDrawer.querySelector('#btn-drawer-open-calibration')?.addEventListener('click', () => {
       this.closeDrawer();
       this.calibrationPanel.open();
+    });
+
+    // Keep drawer calibration readout synced with live calibration changes
+    this.calibrationManager.subscribe((data) => {
+      const dimEl = this.settingsDrawer.querySelector('#drawer-calib-dim');
+      const distEl = this.settingsDrawer.querySelector('#drawer-calib-dist');
+      if (dimEl) {
+        dimEl.textContent = `${(data.screenWidth * 100).toFixed(1)} × ${(data.screenHeight * 100).toFixed(1)} cm`;
+      }
+      if (distEl) {
+        distEl.textContent = `${(data.viewingDistance * 100).toFixed(0)} cm`;
+      }
     });
 
     // Input mode change

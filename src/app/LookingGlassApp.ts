@@ -115,7 +115,8 @@ export class LookingGlassApp {
         onFeedFish: () => this.handleFeedFish(),
         onToggleDebugHud: (visible) => {
           this.sceneManager.demoScene.setAxesVisible(visible);
-        }
+        },
+        getCurrentRawPose: () => this.currentRawPose
       }
     );
 
