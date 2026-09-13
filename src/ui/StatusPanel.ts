@@ -10,8 +10,9 @@ export class StatusPanel {
   private element: HTMLElement;
   private dot: HTMLElement;
   private text: HTMLElement;
+  private isVisible: boolean = true;
 
-  constructor(parent: HTMLElement = document.body) {
+  constructor(parent: HTMLElement = document.body, initialVisible: boolean = true) {
     this.element = document.createElement('div');
     this.element.className = 'hud-status-panel';
 
@@ -27,6 +28,16 @@ export class StatusPanel {
     parent.appendChild(this.element);
 
     this.setStatus(TrackingStatus.Initializing);
+    this.setVisible(initialVisible);
+  }
+
+  public setVisible(visible: boolean): void {
+    this.isVisible = visible;
+    this.element.style.display = visible ? 'flex' : 'none';
+  }
+
+  public getVisible(): boolean {
+    return this.isVisible;
   }
 
   public setStatus(status: TrackingStatus, customMessage?: string): void {

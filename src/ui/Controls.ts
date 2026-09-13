@@ -237,6 +237,12 @@ export class Controls {
       }
     });
 
+    document.addEventListener('fullscreenchange', () => {
+      const isFullscreen = !!document.fullscreenElement;
+      document.body.classList.toggle('is-fullscreen', isFullscreen);
+      this.topBar.classList.toggle('is-fullscreen', isFullscreen);
+    });
+
     this.topBar.querySelector('#btn-scene-menu')?.addEventListener('click', (e) => {
       e.stopPropagation();
       this.toggleScenePopover();

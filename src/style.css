@@ -80,6 +80,14 @@ html, body {
   align-items: center;
 }
 
+/* Remove/hide title when going full screen */
+:fullscreen .topbar-brand,
+:-webkit-full-screen .topbar-brand,
+body.is-fullscreen .topbar-brand,
+.hud-topbar.is-fullscreen .topbar-brand {
+  display: none !important;
+}
+
 .app-title {
   font-size: 1.2rem;
   font-weight: 700;

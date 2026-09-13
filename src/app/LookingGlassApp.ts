@@ -87,7 +87,7 @@ export class LookingGlassApp {
     this.inputMode = settings.inputMode;
 
     // 4. Initialize UI Subsystems
-    this.statusPanel = new StatusPanel();
+    this.statusPanel = new StatusPanel(document.body, settings.debugHudVisible);
     this.calibrationPanel = new CalibrationPanel(
       this.calibrationManager,
       {
@@ -116,6 +116,7 @@ export class LookingGlassApp {
         onFeedFish: () => this.handleFeedFish(),
         onToggleDebugHud: (visible) => {
           this.sceneManager.demoScene.setAxesVisible(visible);
+          this.statusPanel.setVisible(visible);
         },
         getCurrentRawPose: () => this.currentRawPose,
         getBiometricDistance: () => {
@@ -241,6 +242,8 @@ export class LookingGlassApp {
   };
 
   private onFullscreenChange = (): void => {
+    const isFullscreen = !!document.fullscreenElement;
+    document.body.classList.toggle('is-fullscreen', isFullscreen);
     // Ensure browser layout has completed before reading inner dimensions
     requestAnimationFrame(() => {
       this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -364,6 +367,7 @@ export class LookingGlassApp {
     const screen = this.calibrationManager.getScreenGeometry();
     this.sceneManager.setSceneType(sceneType, screen);
     this.sceneManager.demoScene.setAxesVisible(this.controls.getIsDebugHudVisible());
+    this.statusPanel.setVisible(this.controls.getIsDebugHudVisible());
     this.controls.setScene(sceneType);
     this.settingsManager.updateSettings({ sceneType });
   }
