@@ -274,17 +274,17 @@ export class Controls {
           <div class="setting-group">
             <div class="setting-header">
               <label for="slider-light-rot-x">Directional Tilt X:</label>
-              <span id="val-light-rot-x" class="slider-value">0°</span>
+              <span id="val-light-rot-x" class="slider-value">+10°</span>
             </div>
-            <input type="range" id="slider-light-rot-x" min="-75" max="75" step="1" value="0">
+            <input type="range" id="slider-light-rot-x" min="-75" max="75" step="1" value="10">
           </div>
 
           <div class="setting-group">
             <div class="setting-header">
               <label for="slider-light-rot-z">Directional Tilt Z:</label>
-              <span id="val-light-rot-z" class="slider-value">0°</span>
+              <span id="val-light-rot-z" class="slider-value">-35°</span>
             </div>
-            <input type="range" id="slider-light-rot-z" min="-75" max="75" step="1" value="0">
+            <input type="range" id="slider-light-rot-z" min="-75" max="75" step="1" value="-35">
           </div>
         </div>
       </div>

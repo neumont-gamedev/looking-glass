@@ -26,8 +26,8 @@ export class SceneManager {
 
   private modelViewerAmbientColor: string = '#333333';
   private modelViewerDirColor: string = '#ffffff';
-  private modelViewerLightRotX: number = 0;
-  private modelViewerLightRotZ: number = 0;
+  private modelViewerLightRotX: number = 10;
+  private modelViewerLightRotZ: number = -35;
 
   constructor(screen: ScreenGeometry) {
     this.scene = new THREE.Scene();
