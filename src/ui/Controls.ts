@@ -31,6 +31,8 @@ export interface ControlsCallbacks {
   onAmbientLightColorChange?: (colorHex: string) => void;
   onDirLightColorChange?: (colorHex: string) => void;
   onDirLightRotationChange?: (rotXDeg: number, rotZDeg: number) => void;
+  onModelZChange?: (zMeters: number) => void;
+  onModelScaleChange?: (scaleMultiplier: number) => void;
 }
 
 export class Controls {
@@ -244,6 +246,22 @@ export class Controls {
           </div>
 
           <div class="setting-group">
+            <div class="setting-header">
+              <label for="slider-model-z">Model Depth (Z):</label>
+              <span id="val-model-z" class="slider-value">-25 cm</span>
+            </div>
+            <input type="range" id="slider-model-z" min="-45" max="5" step="1" value="-25">
+          </div>
+
+          <div class="setting-group">
+            <div class="setting-header">
+              <label for="slider-model-scale">Model Scale:</label>
+              <span id="val-model-scale" class="slider-value">1.00×</span>
+            </div>
+            <input type="range" id="slider-model-scale" min="0.2" max="2.5" step="0.05" value="1.0">
+          </div>
+
+          <div class="setting-group">
             <label for="scene-select-texture">Wall Texture (10cm Grid):</label>
             <select id="scene-select-texture">
               <option value="textures/orange_grid.png">🟧 Orange Grid</option>
@@ -309,6 +327,31 @@ export class Controls {
       const url = (e.target as HTMLSelectElement).value;
       if (url && this.callbacks.onModelChange) {
         this.callbacks.onModelChange(url);
+      }
+    });
+
+    const modelZSlider = this.scenePopover.querySelector('#slider-model-z') as HTMLInputElement;
+    const modelZVal = this.scenePopover.querySelector('#val-model-z') as HTMLElement;
+    modelZSlider?.addEventListener('input', (e) => {
+      const valCm = parseFloat((e.target as HTMLInputElement).value || '-25');
+      if (modelZVal) {
+        const sign = valCm > 0 ? '+' : '';
+        modelZVal.textContent = `${sign}${valCm} cm`;
+      }
+      if (this.callbacks.onModelZChange) {
+        this.callbacks.onModelZChange(valCm / 100);
+      }
+    });
+
+    const modelScaleSlider = this.scenePopover.querySelector('#slider-model-scale') as HTMLInputElement;
+    const modelScaleVal = this.scenePopover.querySelector('#val-model-scale') as HTMLElement;
+    modelScaleSlider?.addEventListener('input', (e) => {
+      const mult = parseFloat((e.target as HTMLInputElement).value || '1');
+      if (modelScaleVal) {
+        modelScaleVal.textContent = `${mult.toFixed(2)}×`;
+      }
+      if (this.callbacks.onModelScaleChange) {
+        this.callbacks.onModelScaleChange(mult);
       }
     });
 

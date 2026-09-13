@@ -36,6 +36,8 @@ export class DemoScene {
   private currentModelUrl: string = 'models/fish01.glb';
   private currentTextureUrl: string = 'textures/orange_grid.png';
   private currentScreen: ScreenGeometry | null = null;
+  private modelZ: number = -0.25;
+  private modelScaleMultiplier: number = 1.0;
 
   constructor(screen: ScreenGeometry) {
     this.currentScreen = screen;
@@ -171,8 +173,8 @@ export class DemoScene {
 
       this.modelWrapper = new THREE.Group();
       this.modelWrapper.add(scene);
-      // Position model at center depth (Z = -0.25m)
-      this.modelWrapper.position.set(0, 0, -0.25);
+      this.modelWrapper.position.set(0, 0, this.modelZ);
+      this.modelWrapper.scale.setScalar(this.modelScaleMultiplier);
       this.modelGroup.add(this.modelWrapper);
 
       // Bind skeletal animation if present
@@ -183,6 +185,26 @@ export class DemoScene {
       }
     } catch (err) {
       console.error(`[DemoScene] Failed to load model ${modelUrl}:`, err);
+    }
+  }
+
+  /**
+   * Adjusts the Z depth position of the 3D model.
+   */
+  public setModelZ(zMeters: number): void {
+    this.modelZ = zMeters;
+    if (this.modelWrapper) {
+      this.modelWrapper.position.z = zMeters;
+    }
+  }
+
+  /**
+   * Adjusts the user scale multiplier for the 3D model.
+   */
+  public setModelScaleMultiplier(multiplier: number): void {
+    this.modelScaleMultiplier = multiplier;
+    if (this.modelWrapper) {
+      this.modelWrapper.scale.setScalar(multiplier);
     }
   }
 

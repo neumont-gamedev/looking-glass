@@ -139,6 +139,12 @@ export class LookingGlassApp {
         },
         onDirLightRotationChange: (rotXDeg: number, rotZDeg: number) => {
           this.sceneManager.setDirLightRotation(rotXDeg, rotZDeg);
+        },
+        onModelZChange: (zMeters: number) => {
+          this.sceneManager.demoScene.setModelZ(zMeters);
+        },
+        onModelScaleChange: (scaleMultiplier: number) => {
+          this.sceneManager.demoScene.setModelScaleMultiplier(scaleMultiplier);
         }
       }
     );
