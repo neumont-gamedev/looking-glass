@@ -269,6 +269,7 @@ export class CalibrationPanel {
     const data = this.manager.getData();
     const cm = (data.viewingDistance * 100).toFixed(0);
     const inches = (data.viewingDistance * 39.3701).toFixed(1);
+    const currentDiagIn = data.screenDiagonalInches ?? (Math.hypot(data.screenWidth, data.screenHeight) * 39.3701);
 
     this.overlay.innerHTML = `
       <div class="calibration-modal">
@@ -355,6 +356,17 @@ export class CalibrationPanel {
           <section class="calib-step">
             <h3>Step 3 — Screen Dimensions</h3>
             <p>Physical size of the display window:</p>
+            <div class="calib-preset-group">
+              <div class="calib-presets-header">
+                <span>Monitor Presets:</span>
+              </div>
+              <div class="calib-preset-buttons">
+                <button type="button" class="btn-preset calib-preset-btn ${Math.abs(currentDiagIn - 14) < 0.8 ? 'active' : ''}" data-diag="14">14"</button>
+                <button type="button" class="btn-preset calib-preset-btn ${Math.abs(currentDiagIn - 16) < 0.8 ? 'active' : ''}" data-diag="16">16"</button>
+                <button type="button" class="btn-preset calib-preset-btn ${Math.abs(currentDiagIn - 27) < 0.8 ? 'active' : ''}" data-diag="27">27"</button>
+                <button type="button" class="btn-preset calib-preset-btn ${Math.abs(currentDiagIn - 32) < 0.8 ? 'active' : ''}" data-diag="32">32"</button>
+              </div>
+            </div>
             <div class="input-row">
               <label for="calib-width-slider">
                 Width: <span id="calib-width-val">${(data.screenWidth * 100).toFixed(1)} cm (${(data.screenWidth * 39.3701).toFixed(1)} in)</span>
@@ -469,6 +481,15 @@ export class CalibrationPanel {
     const heightSlider = this.overlay.querySelector('#calib-height-slider') as HTMLInputElement;
     const heightVal = this.overlay.querySelector('#calib-height-val');
     const dimReadout = this.overlay.querySelector('#calib-dim-readout');
+    const presetBtns = this.overlay.querySelectorAll('.calib-preset-btn');
+
+    const syncPresetActiveStates = (wMeters: number, hMeters: number) => {
+      const diagIn = Math.hypot(wMeters, hMeters) * 39.3701;
+      presetBtns.forEach((b) => {
+        const d = parseFloat(b.getAttribute('data-diag') || '0');
+        b.classList.toggle('active', Math.abs(diagIn - d) < 0.8);
+      });
+    };
 
     const updateDimReadout = (wMeters: number, hMeters: number) => {
       if (dimReadout) {
@@ -482,6 +503,31 @@ export class CalibrationPanel {
       }
     };
 
+    presetBtns.forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const diag = parseFloat((e.currentTarget as HTMLElement).getAttribute('data-diag') || '0');
+        if (diag > 0) {
+          this.manager.setMonitorPreset(diag);
+          const currentData = this.manager.getData();
+          if (widthSlider) widthSlider.value = (currentData.screenWidth * 100).toFixed(1);
+          if (widthVal) {
+            const wCm = (currentData.screenWidth * 100).toFixed(1);
+            const wIn = (currentData.screenWidth * 39.3701).toFixed(1);
+            widthVal.textContent = `${wCm} cm (${wIn} in)`;
+          }
+          if (heightSlider) heightSlider.value = (currentData.screenHeight * 100).toFixed(1);
+          if (heightVal) {
+            const hCm = (currentData.screenHeight * 100).toFixed(1);
+            const hIn = (currentData.screenHeight * 39.3701).toFixed(1);
+            heightVal.textContent = `${hCm} cm (${hIn} in)`;
+          }
+          updateDimReadout(currentData.screenWidth, currentData.screenHeight);
+          presetBtns.forEach(b => b.classList.remove('active'));
+          (e.currentTarget as HTMLElement).classList.add('active');
+        }
+      });
+    });
+
     widthSlider?.addEventListener('input', (e) => {
       const valCm = parseFloat((e.target as HTMLInputElement).value);
       const valIn = (valCm * 0.393701).toFixed(1);
@@ -490,6 +536,7 @@ export class CalibrationPanel {
       const newW = valCm / 100;
       this.manager.setScreenDimensions(newW, currentH);
       updateDimReadout(newW, currentH);
+      syncPresetActiveStates(newW, currentH);
     });
 
     heightSlider?.addEventListener('input', (e) => {
@@ -500,6 +547,7 @@ export class CalibrationPanel {
       const newH = valCm / 100;
       this.manager.setScreenDimensions(currentW, newH);
       updateDimReadout(currentW, newH);
+      syncPresetActiveStates(currentW, newH);
     });
 
     // Sensitivity sliders

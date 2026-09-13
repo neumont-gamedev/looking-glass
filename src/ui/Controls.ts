@@ -389,6 +389,15 @@ export class Controls {
               <strong id="drawer-calib-dist" style="color: var(--accent-cyan); font-family: var(--font-mono);">${(calibData.viewingDistance * 100).toFixed(0)} cm</strong>
             </div>
           </div>
+          <div style="margin-bottom: 8px;">
+            <div style="font-size: 0.70rem; color: var(--text-secondary); margin-bottom: 5px;">Monitor Presets:</div>
+            <div class="calib-preset-buttons">
+              <button type="button" class="btn-preset drawer-preset-btn ${Math.abs((calibData.screenDiagonalInches ?? 24) - 14) < 0.8 ? 'active' : ''}" data-diag="14">14"</button>
+              <button type="button" class="btn-preset drawer-preset-btn ${Math.abs((calibData.screenDiagonalInches ?? 24) - 16) < 0.8 ? 'active' : ''}" data-diag="16">16"</button>
+              <button type="button" class="btn-preset drawer-preset-btn ${Math.abs((calibData.screenDiagonalInches ?? 24) - 27) < 0.8 ? 'active' : ''}" data-diag="27">27"</button>
+              <button type="button" class="btn-preset drawer-preset-btn ${Math.abs((calibData.screenDiagonalInches ?? 24) - 32) < 0.8 ? 'active' : ''}" data-diag="32">32"</button>
+            </div>
+          </div>
           <div style="display: flex; flex-direction: column; gap: 6px;">
             <button id="btn-drawer-recalibrate-center" class="btn" style="width: 100%; border: 1px solid rgba(0, 229, 255, 0.4); color: var(--accent-cyan); background: rgba(0, 229, 255, 0.08); cursor: pointer; padding: 7px 12px; font-size: 0.78rem; transition: background 0.2s;">
               🎯 Set Center Position
@@ -416,6 +425,18 @@ export class Controls {
 
     this.settingsDrawer.querySelector('#drawer-close-btn')?.addEventListener('click', () => {
       this.closeDrawer();
+    });
+
+    const drawerPresetBtns = this.settingsDrawer.querySelectorAll('.drawer-preset-btn');
+    drawerPresetBtns.forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const diag = parseFloat((e.currentTarget as HTMLElement).getAttribute('data-diag') || '0');
+        if (diag > 0) {
+          this.calibrationManager.setMonitorPreset(diag);
+          drawerPresetBtns.forEach(b => b.classList.remove('active'));
+          (e.currentTarget as HTMLElement).classList.add('active');
+        }
+      });
     });
 
     this.settingsDrawer.querySelector('#btn-drawer-recalibrate-center')?.addEventListener('click', () => {
@@ -450,6 +471,12 @@ export class Controls {
       if (distEl) {
         distEl.textContent = `${(data.viewingDistance * 100).toFixed(0)} cm`;
       }
+      const diagIn = data.screenDiagonalInches ?? (Math.hypot(data.screenWidth, data.screenHeight) * 39.3701);
+      const btns = this.settingsDrawer.querySelectorAll('.drawer-preset-btn');
+      btns.forEach((btn) => {
+        const d = parseFloat(btn.getAttribute('data-diag') || '0');
+        btn.classList.toggle('active', Math.abs(diagIn - d) < 0.8);
+      });
     });
 
     // Input mode change

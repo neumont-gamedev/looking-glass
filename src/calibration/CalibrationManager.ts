@@ -121,6 +121,42 @@ export class CalibrationManager {
     }
   }
 
+  /**
+   * Sets screen dimensions and diagonal directly from a monitor size preset (e.g. 14", 16", 27", 32").
+   * Computes standard physical dimensions based on aspect ratio (standard 16:9, or 16:10 for common laptops).
+   */
+  public setMonitorPreset(diagonalInches: number, customWidthMeters?: number, customHeightMeters?: number): void {
+    this.data.screenDiagonalInches = diagonalInches;
+
+    let wMeters: number;
+    let hMeters: number;
+
+    if (customWidthMeters && customHeightMeters) {
+      wMeters = customWidthMeters;
+      hMeters = customHeightMeters;
+    } else {
+      let aspectW = 16;
+      let aspectH = 9;
+      if (typeof window !== 'undefined' && window.screen && window.screen.width > 0 && window.screen.height > 0) {
+        const screenAspect = window.screen.width / window.screen.height;
+        if ((diagonalInches === 14 || diagonalInches === 16) && Math.abs(screenAspect - 1.6) < 0.08) {
+          aspectW = 16;
+          aspectH = 10;
+        }
+      }
+      const geom = ScreenGeometry.fromDiagonal(diagonalInches, aspectW, aspectH);
+      wMeters = geom.width;
+      hMeters = geom.height;
+    }
+
+    this.data.screenWidth = Math.max(0.1, wMeters);
+    this.data.screenHeight = Math.max(0.1, hMeters);
+    this.screenGeometry.width = this.data.screenWidth;
+    this.screenGeometry.height = this.data.screenHeight;
+    this.save();
+    this.notify();
+  }
+
   public setScreenDimensions(widthMeters: number, heightMeters: number): void {
     this.data.screenWidth = Math.max(0.1, widthMeters);
     this.data.screenHeight = Math.max(0.1, heightMeters);
