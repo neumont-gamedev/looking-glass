@@ -356,15 +356,6 @@ export class Controls {
           </select>
         </div>
 
-        <!-- Aquarium Interaction Guide -->
-        <div class="setting-group interaction-guide">
-          <h4>Aquarium Interactions</h4>
-          <p style="font-size: 0.78rem; color: var(--text-secondary); line-height: 1.4;">
-            • <strong>Left-Click / Tap:</strong> Tap on the glass window to startle the fish.<br/>
-            • <strong>Right-Click or 'F' key:</strong> Drop sinking food pellets into the tank.
-          </p>
-        </div>
-
         <!-- Predictive Positioning & Kinematic Smoothing -->
         <div class="setting-group">
           <h4>Motion Smoothing & Predictive Tracking</h4>
