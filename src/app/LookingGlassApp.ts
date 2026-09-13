@@ -82,6 +82,7 @@ export class LookingGlassApp {
     this.debugView = new TrackingDebugView();
     this.debugView.attachVideo(this.faceTracker.getVideoElement());
     this.debugView.setVisible(settings.webcamPipVisible);
+    this.debugView.setCameraActive(false);
 
     this.inputMode = settings.inputMode;
 
@@ -170,12 +171,15 @@ export class LookingGlassApp {
     this.faceTracker.onStatusChange((status, message) => {
       if (this.inputMode === InputMode.Webcam) {
         this.statusPanel.setStatus(status, message);
+        this.debugView.setCameraActive(this.faceTracker.isCameraRunning());
         if (status === TrackingStatus.CameraDenied || status === TrackingStatus.Error) {
           // Automatic graceful fallback to Mouse Mode on camera block
           console.warn('[LookingGlassApp] Falling back to mouse input mode due to camera issue.');
           this.controls.setInputMode(InputMode.Mouse);
           this.handleInputModeChange(InputMode.Mouse);
         }
+      } else {
+        this.debugView.setCameraActive(false);
       }
     });
 
@@ -290,12 +294,16 @@ export class LookingGlassApp {
 
     if (mode === InputMode.Webcam) {
       this.statusPanel.setStatus(TrackingStatus.Initializing, 'Starting Webcam Tracking...');
-      this.faceTracker.startCamera().catch((err) => {
+      this.faceTracker.startCamera().then(() => {
+        this.debugView.setCameraActive(this.faceTracker.isCameraRunning());
+      }).catch((err) => {
         console.warn('[LookingGlassApp] Camera start failed on switch:', err);
+        this.debugView.setCameraActive(false);
       });
     } else {
       // Power down webcam hardware when switching to Mouse or Auto mode
       this.faceTracker.stopCamera();
+      this.debugView.setCameraActive(false);
       this.currentResult = null;
       this.currentRawPose = null;
       this.perspectiveController.updatePose(
@@ -330,13 +338,16 @@ export class LookingGlassApp {
     const settings = this.settingsManager.getSettings();
     if (settings.inputMode === InputMode.Webcam) {
       this.statusPanel.setStatus(TrackingStatus.Initializing, 'Starting Webcam Tracking...');
-      this.faceTracker.initialize().catch((err) => {
+      this.faceTracker.initialize().then(() => {
+        this.debugView.setCameraActive(this.faceTracker.isCameraRunning());
+      }).catch((err) => {
         console.warn('[LookingGlassApp] Default camera init error, falling back to mouse:', err);
         this.controls.setInputMode(InputMode.Mouse);
         this.handleInputModeChange(InputMode.Mouse);
       });
     } else {
       this.faceTracker.stopCamera();
+      this.debugView.setCameraActive(false);
       if (settings.inputMode === InputMode.Mouse) {
         this.statusPanel.setStatus(TrackingStatus.FallbackMouse);
       } else if (settings.inputMode === InputMode.Auto) {
@@ -410,15 +421,20 @@ export class LookingGlassApp {
     this.renderer.render(this.sceneManager.scene, this.perspectiveController.camera);
 
     // 4. Update PIP Debug Overlay
-    const eyeMid = this.currentResult?.landmarks
-      ? this.poseEstimator.getEyeMidpoint(this.currentResult.landmarks)
-      : null;
-    this.debugView.render(
-      this.currentResult?.landmarks ?? null,
-      eyeMid,
-      this.perspectiveController.getCurrentPose() as any,
-      fps
-    );
+    const isCameraOn = this.inputMode === InputMode.Webcam && this.faceTracker.isCameraRunning();
+    this.debugView.setCameraActive(isCameraOn);
+
+    if (isCameraOn && this.debugView.getIsVisible()) {
+      const eyeMid = this.currentResult?.landmarks
+        ? this.poseEstimator.getEyeMidpoint(this.currentResult.landmarks)
+        : null;
+      this.debugView.render(
+        this.currentResult?.landmarks ?? null,
+        eyeMid,
+        this.perspectiveController.getCurrentPose() as any,
+        fps
+      );
+    }
 
     this.animationFrameId = requestAnimationFrame(this.renderLoop);
   };

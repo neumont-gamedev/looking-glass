@@ -15,7 +15,8 @@ export class TrackingDebugView {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private video: HTMLVideoElement | null = null;
-  private isVisible: boolean = false;
+  private userRequestedVisible: boolean = false;
+  private isCameraActive: boolean = false;
 
   constructor(parentContainer?: HTMLElement) {
     this.container = document.createElement('div');
@@ -41,13 +42,36 @@ export class TrackingDebugView {
   }
 
   public setVisible(visible: boolean): void {
-    this.isVisible = visible;
-    this.container.style.display = visible ? 'block' : 'none';
+    this.userRequestedVisible = visible;
+    this.updateVisibility();
+  }
+
+  public setCameraActive(active: boolean): void {
+    if (this.isCameraActive !== active) {
+      this.isCameraActive = active;
+      this.updateVisibility();
+    }
+  }
+
+  public getUserRequestedVisible(): boolean {
+    return this.userRequestedVisible;
+  }
+
+  public getIsVisible(): boolean {
+    return this.userRequestedVisible && this.isCameraActive;
   }
 
   public toggle(): boolean {
-    this.setVisible(!this.isVisible);
-    return this.isVisible;
+    this.setVisible(!this.userRequestedVisible);
+    return this.userRequestedVisible;
+  }
+
+  private updateVisibility(): void {
+    const shouldShow = this.userRequestedVisible && this.isCameraActive;
+    const targetDisplay = shouldShow ? 'block' : 'none';
+    if (this.container.style.display !== targetDisplay) {
+      this.container.style.display = targetDisplay;
+    }
   }
 
   public render(
@@ -56,7 +80,11 @@ export class TrackingDebugView {
     pose: ViewerPose | null,
     fps: number
   ): void {
-    if (!this.isVisible) return;
+    if (!this.getIsVisible()) return;
+
+    if (!this.video || !this.video.srcObject || this.video.readyState < 2) {
+      return;
+    }
 
     const width = this.video?.videoWidth || 320;
     const height = this.video?.videoHeight || 240;

@@ -48,10 +48,13 @@ export class FaceTracker {
   }
 
   /**
-   * Checks if camera stream is active and running.
+   * Checks if camera stream is active and running with live video tracks.
    */
   public isCameraRunning(): boolean {
-    return this.isRunning && !!this.video.srcObject;
+    if (!this.isRunning || !this.video.srcObject) return false;
+    const stream = this.video.srcObject as MediaStream;
+    const tracks = stream.getVideoTracks ? stream.getVideoTracks() : [];
+    return tracks.length > 0 && tracks.some((t) => t.readyState === 'live');
   }
 
   /**
