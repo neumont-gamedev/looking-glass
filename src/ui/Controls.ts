@@ -27,7 +27,10 @@ export interface ControlsCallbacks {
 export class Controls {
   private topBar: HTMLElement;
   private settingsDrawer: HTMLElement;
+  private scenePopover: HTMLElement;
   private isDrawerOpen: boolean = false;
+  private isSceneOpen: boolean = false;
+  private currentSceneType: SceneType = SceneType.Aquarium;
 
   private currentInputMode: InputMode = InputMode.Webcam;
   private perspectiveController: PerspectiveController;
@@ -55,6 +58,7 @@ export class Controls {
     const initialSettings = this.settingsManager.getSettings();
     this.currentInputMode = initialSettings.inputMode;
     this.isDebugHudVisible = initialSettings.debugHudVisible;
+    this.currentSceneType = initialSettings.sceneType;
 
     this.topBar = document.createElement('header');
     this.topBar.className = 'hud-topbar';
@@ -63,17 +67,26 @@ export class Controls {
     this.settingsDrawer.className = 'settings-drawer';
     this.settingsDrawer.style.display = 'none';
 
+    this.scenePopover = document.createElement('div');
+    this.scenePopover.className = 'scene-popover';
+    this.scenePopover.style.display = 'none';
+
     this.calibrationPanel.setOnOpenCallback(() => {
       if (this.isDrawerOpen) {
         this.closeDrawer();
       }
+      if (this.isSceneOpen) {
+        this.closeScenePopover();
+      }
     });
 
     this.buildTopBar();
+    this.buildScenePopover();
     this.buildDrawer();
 
     document.body.appendChild(this.topBar);
     document.body.appendChild(this.settingsDrawer);
+    document.body.appendChild(this.scenePopover);
   }
 
   public setInputMode(mode: InputMode): void {
@@ -137,8 +150,13 @@ export class Controls {
       <div class="topbar-actions">
         <button class="btn btn-hud" id="btn-feed-fish">Feed Fish 🦐</button>
         <button class="btn btn-hud btn-icon" id="btn-fullscreen" title="Toggle Fullscreen">⛶</button>
+        <button class="btn btn-hud btn-sm" id="btn-scene-menu" title="Select Virtual 3D Scene">
+          <span style="font-size: 1rem; line-height: 1; display: inline-flex; align-items: center;">🎬</span>
+          <span id="btn-scene-label">Scenes</span>
+          <span class="dropdown-caret" style="font-size: 0.65rem; opacity: 0.7; margin-left: 1px;">▾</span>
+        </button>
         <button class="btn btn-hud btn-sm" id="btn-calibrate" title="Display Calibration (Window, Depth, Sensitivity)">⚙ <span>Calibrate</span></button>
-        <button class="btn btn-hud btn-sm" id="btn-toggle-settings" title="Settings (Scenes, Tracking, Filters, Debug)">
+        <button class="btn btn-hud btn-sm" id="btn-toggle-settings" title="Settings (Input, Projection, Smoothing, Calibration)">
           <svg class="btn-svg-icon" viewBox="0 0 24 24">
             <line x1="4" y1="21" x2="4" y2="14"></line>
             <line x1="4" y1="10" x2="4" y2="3"></line>
@@ -180,9 +198,17 @@ export class Controls {
       }
     });
 
+    this.topBar.querySelector('#btn-scene-menu')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.toggleScenePopover();
+    });
+
     const openCalibrationHandler = () => {
       if (this.isDrawerOpen) {
         this.closeDrawer();
+      }
+      if (this.isSceneOpen) {
+        this.closeScenePopover();
       }
       this.calibrationPanel.toggle();
     };
@@ -194,8 +220,108 @@ export class Controls {
       if (this.calibrationPanel.getIsOpen()) {
         this.calibrationPanel.close();
       }
+      if (this.isSceneOpen) {
+        this.closeScenePopover();
+      }
       this.toggleDrawer();
     });
+
+    // Close scene popover on click outside
+    document.addEventListener('pointerdown', (e) => {
+      if (this.isSceneOpen) {
+        const target = e.target as HTMLElement;
+        const btn = this.topBar.querySelector('#btn-scene-menu');
+        if (!this.scenePopover.contains(target) && !btn?.contains(target)) {
+          this.closeScenePopover();
+        }
+      }
+    });
+  }
+
+  private buildScenePopover(): void {
+    const currentScene = this.currentSceneType;
+
+    this.scenePopover.innerHTML = `
+      <div class="scene-popover-header">
+        <span class="scene-popover-title">🎬 Virtual 3D Scenes</span>
+        <button class="close-btn" id="scene-popover-close-btn">&times;</button>
+      </div>
+      <div class="scene-popover-list">
+        <button class="scene-card ${currentScene === SceneType.Aquarium ? 'active' : ''}" data-scene="${SceneType.Aquarium}">
+          <div class="scene-card-icon">🐠</div>
+          <div class="scene-card-body">
+            <div class="scene-card-title">Virtual Aquarium</div>
+            <div class="scene-card-desc">Interactive swimming fish, kelp & feeding</div>
+          </div>
+          <span class="scene-card-check">✓</span>
+        </button>
+        <button class="scene-card ${currentScene === SceneType.Diorama ? 'active' : ''}" data-scene="${SceneType.Diorama}">
+          <div class="scene-card-icon">📦</div>
+          <div class="scene-card-body">
+            <div class="scene-card-title">Diorama Shadow Box</div>
+            <div class="scene-card-desc">Floating geometric shapes & shadow box depth</div>
+          </div>
+          <span class="scene-card-check">✓</span>
+        </button>
+        <button class="scene-card ${currentScene === SceneType.Debug ? 'active' : ''}" data-scene="${SceneType.Debug}">
+          <div class="scene-card-icon">📐</div>
+          <div class="scene-card-body">
+            <div class="scene-card-title">Debug Calibration Grids</div>
+            <div class="scene-card-desc">XYZ coordinate axes & depth test markers</div>
+          </div>
+          <span class="scene-card-check">✓</span>
+        </button>
+      </div>
+    `;
+
+    this.scenePopover.querySelector('#scene-popover-close-btn')?.addEventListener('click', () => {
+      this.closeScenePopover();
+    });
+
+    const cards = this.scenePopover.querySelectorAll('.scene-card');
+    cards.forEach((card) => {
+      card.addEventListener('click', () => {
+        const scene = card.getAttribute('data-scene') as SceneType;
+        if (scene) {
+          this.setScene(scene);
+          this.settingsManager.updateSettings({ sceneType: scene });
+          this.callbacks.onSceneChange(scene);
+          this.closeScenePopover();
+        }
+      });
+    });
+  }
+
+  public isScenePopoverOpen(): boolean {
+    return this.isSceneOpen;
+  }
+
+  public openScenePopover(): void {
+    if (this.calibrationPanel.getIsOpen()) {
+      this.calibrationPanel.close();
+    }
+    if (this.isDrawerOpen) {
+      this.closeDrawer();
+    }
+    this.isSceneOpen = true;
+    this.scenePopover.style.display = 'block';
+  }
+
+  public closeScenePopover(): void {
+    this.isSceneOpen = false;
+    this.scenePopover.style.display = 'none';
+  }
+
+  public toggleScenePopover(): void {
+    if (this.isSceneOpen) {
+      this.closeScenePopover();
+    } else {
+      this.openScenePopover();
+    }
+  }
+
+  public getCurrentSceneType(): SceneType {
+    return this.currentSceneType;
   }
 
   public toggleDebugHud(): boolean {
@@ -230,6 +356,9 @@ export class Controls {
     if (this.calibrationPanel.getIsOpen()) {
       this.calibrationPanel.close();
     }
+    if (this.isSceneOpen) {
+      this.closeScenePopover();
+    }
     this.isDrawerOpen = true;
     this.settingsDrawer.style.display = 'block';
   }
@@ -248,12 +377,25 @@ export class Controls {
   }
 
   public setScene(sceneType: SceneType): void {
+    this.currentSceneType = sceneType;
     if (this.feedFishBtn) {
       this.feedFishBtn.style.display = sceneType === SceneType.Aquarium ? '' : 'none';
     }
-    const sceneSelect = this.settingsDrawer.querySelector('#scene-select') as HTMLSelectElement;
-    if (sceneSelect && sceneSelect.value !== sceneType) {
-      sceneSelect.value = sceneType;
+    if (this.scenePopover) {
+      const cards = this.scenePopover.querySelectorAll('.scene-card');
+      cards.forEach((card) => {
+        const matches = card.getAttribute('data-scene') === sceneType;
+        card.classList.toggle('active', matches);
+      });
+    }
+    const labelEl = this.topBar.querySelector('#btn-scene-label');
+    if (labelEl) {
+      const sceneNames: Record<SceneType, string> = {
+        [SceneType.Aquarium]: 'Aquarium',
+        [SceneType.Diorama]: 'Diorama',
+        [SceneType.Debug]: 'Debug Grids'
+      };
+      labelEl.textContent = sceneNames[sceneType] ?? 'Scenes';
     }
   }
 
@@ -323,10 +465,6 @@ export class Controls {
     const isAccurateProj = settings.projectionMode === ProjectionMode.Accurate ? 'selected' : '';
     const isSimpleProj = settings.projectionMode === ProjectionMode.Simple ? 'selected' : '';
 
-    const isAquarium = settings.sceneType === SceneType.Aquarium ? 'selected' : '';
-    const isDiorama = settings.sceneType === SceneType.Diorama ? 'selected' : '';
-    const isDebug = settings.sceneType === SceneType.Debug ? 'selected' : '';
-
     this.settingsDrawer.innerHTML = `
       <div class="drawer-header">
         <h3>Configuration & Settings</h3>
@@ -349,16 +487,6 @@ export class Controls {
           <select id="proj-mode-select">
             <option value="${ProjectionMode.Accurate}" ${isAccurateProj}>Off-Axis Asymmetric Window</option>
             <option value="${ProjectionMode.Simple}" ${isSimpleProj}>Camera Translation</option>
-          </select>
-        </div>
-
-        <!-- Scene Mode -->
-        <div class="setting-group">
-          <label for="scene-select">Virtual 3D Scene:</label>
-          <select id="scene-select">
-            <option value="${SceneType.Aquarium}" ${isAquarium}>🐠 Virtual Aquarium</option>
-            <option value="${SceneType.Diorama}" ${isDiorama}>📦 Diorama Shadow Box</option>
-            <option value="${SceneType.Debug}" ${isDebug}>📐 Debug Calibration Grids</option>
           </select>
         </div>
 
@@ -512,15 +640,6 @@ export class Controls {
       this.settingsManager.updateSettings({ projectionMode: mode });
     });
 
-    // Scene select
-    const sceneSelect = this.settingsDrawer.querySelector('#scene-select') as HTMLSelectElement;
-    sceneSelect?.addEventListener('change', (e) => {
-      const type = (e.target as HTMLSelectElement).value as SceneType;
-      this.setScene(type);
-      this.settingsManager.updateSettings({ sceneType: type });
-      this.callbacks.onSceneChange(type);
-    });
-
     // Consolidated Tracking Smoothing slider
     const smoothnessSlider = this.settingsDrawer.querySelector('#slider-tracking-smoothness') as HTMLInputElement;
     const smoothnessVal = this.settingsDrawer.querySelector('#val-tracking-smoothness');
@@ -564,8 +683,6 @@ export class Controls {
     const projSelect = this.settingsDrawer.querySelector('#proj-mode-select') as HTMLSelectElement;
     if (projSelect) projSelect.value = settings.projectionMode;
 
-    const sceneSelect = this.settingsDrawer.querySelector('#scene-select') as HTMLSelectElement;
-    if (sceneSelect) sceneSelect.value = settings.sceneType;
     this.setScene(settings.sceneType);
 
     const smoothnessSlider = this.settingsDrawer.querySelector('#slider-tracking-smoothness') as HTMLInputElement;

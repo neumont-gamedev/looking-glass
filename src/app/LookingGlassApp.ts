@@ -231,9 +231,12 @@ export class LookingGlassApp {
       return;
     }
 
-    // 2. Escape key closes Calibrate or Settings window
+    // 2. Escape key closes Scene Selector, Calibrate, or Settings window
     if (e.key === 'Escape' || e.code === 'Escape') {
-      if (this.calibrationPanel.getIsOpen()) {
+      if (this.controls.isScenePopoverOpen()) {
+        this.controls.closeScenePopover();
+        return;
+      } else if (this.calibrationPanel.getIsOpen()) {
         this.calibrationPanel.close();
         return;
       } else if (this.controls.isSettingsOpen()) {
