@@ -233,7 +233,9 @@ export class PerspectiveController {
         this.currentZ,
         this.screen,
         this.near,
-        this.far
+        this.far,
+        this.referenceDistance,
+        this.depthMode
       );
     }
   }

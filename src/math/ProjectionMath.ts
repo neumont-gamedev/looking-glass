@@ -148,6 +148,9 @@ export class ProjectionMath {
   /**
    * Applies standard centered perspective with camera translation and lookAt
    * (Used for Simple Mode / debugging).
+   *
+   * Dynamically matches the camera FOV to the physical screen height at the viewer's
+   * distance so the visual scale and framing seamlessly match Off-Axis projection when centered.
    */
   public static applySimplePerspective(
     camera: THREE.PerspectiveCamera,
@@ -156,8 +159,17 @@ export class ProjectionMath {
     eyeZ: number,
     screen: ScreenGeometry,
     near: number = 0.05,
-    far: number = 100.0
+    far: number = 100.0,
+    referenceDistance: number = 0.65,
+    depthMode: 'natural' | 'aperture' = 'aperture'
   ): void {
+    const safeZ = Math.max(0.1, Number.isFinite(eyeZ) ? eyeZ : 0.6);
+    const effectiveZ = depthMode === 'natural' ? Math.max(0.2, referenceDistance) : safeZ;
+
+    // Dynamically match FOV so screen bounds at Z=0 match monitor height
+    const fovRadians = 2 * Math.atan((screen.height / 2) / effectiveZ);
+    camera.fov = THREE.MathUtils.radToDeg(fovRadians);
+
     camera.position.set(eyeX, eyeY, eyeZ);
     camera.lookAt(0, 0, -1);
     camera.near = near;
