@@ -8,3 +8,4 @@ export enum ProjectionMode {
   Accurate = 'Accurate',
   Simple = 'Simple'
 }
+
