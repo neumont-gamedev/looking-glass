@@ -34,8 +34,8 @@ export class DemoScene {
   private currentMixer: THREE.AnimationMixer | null = null;
   private wallMeshes: THREE.Mesh[] = [];
   private currentModelUrl: string = 'models/fish01.glb';
-  private currentTextureUrl: string = 'textures/metric_grid.png';
-  private currentWallColor: string = '#ffa131';
+  private currentTextureUrl: string = 'textures/orange_grid.png';
+  private currentWallColor: string = '#ffffff';
   private currentScreen: ScreenGeometry | null = null;
   private modelZ: number = -0.25;
   private modelScaleMultiplier: number = 1.0;
@@ -264,10 +264,18 @@ export class DemoScene {
         newTex.wrapT = THREE.RepeatWrapping;
         newTex.colorSpace = THREE.SRGBColorSpace;
         newTex.repeat.set(wMeters / 0.10, hMeters / 0.10);
+        mat.color.set(0xffffff);
         mat.map = newTex;
         mat.needsUpdate = true;
       }
     });
+  }
+
+  /**
+   * Gets the active wall texture URL.
+   */
+  public getWallTexture(): string {
+    return this.currentTextureUrl;
   }
 
   /**

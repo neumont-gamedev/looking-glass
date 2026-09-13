@@ -132,6 +132,9 @@ export class LookingGlassApp {
         onTextureChange: (textureUrl: string) => {
           this.sceneManager.demoScene.setWallTexture(textureUrl);
         },
+        getWallTexture: () => {
+          return this.sceneManager.demoScene.getWallTexture();
+        },
         onWallColorChange: (colorHex: string) => {
           this.sceneManager.demoScene.setWallColor(colorHex);
         },

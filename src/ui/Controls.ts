@@ -38,10 +38,11 @@ function getAvailableTextures(): { url: string; label: string }[] {
     let emoji = '🖼️ ';
     const lower = cleanName.toLowerCase();
     if (lower.includes('orange')) emoji = '🟧 ';
+    else if (lower.includes('red')) emoji = '🟥 ';
+    else if (lower.includes('blue') || lower.includes('cyan')) emoji = '🟦 ';
     else if (lower.includes('gray') || lower.includes('grey')) emoji = '⬜ ';
     else if (lower.includes('green')) emoji = '🟩 ';
     else if (lower.includes('purple')) emoji = '🟪 ';
-    else if (lower.includes('blue') || lower.includes('cyan')) emoji = '🟦 ';
     else if (lower.includes('metric')) emoji = '📐 ';
     else if (lower.includes('dark') || lower.includes('black')) emoji = '⬛ ';
 
@@ -54,14 +55,24 @@ function getAvailableTextures(): { url: string; label: string }[] {
   // Fallback to the exact files present in public/textures if glob is empty in bundling
   if (entries.length === 0) {
     return [
-      { url: 'textures/metric_grid.png', label: '📐 Metric Grid (10cm)' }
+      { url: 'textures/orange_grid.png', label: '🟧 Orange Grid' },
+      { url: 'textures/red_grid.png', label: '🟥 Red Grid' },
+      { url: 'textures/blue_grid.png', label: '🟦 Blue Grid' },
+      { url: 'textures/gray_grid.png', label: '⬜ Gray Grid' },
+      { url: 'textures/green_grid.png', label: '🟩 Green Grid' }
     ];
   }
 
-  // Sort with metric_grid first as default, then alphabetically
+  // Desired sort order: orange, red, blue, gray, green, then any others
+  const sortOrder = ['orange_grid.png', 'red_grid.png', 'blue_grid.png', 'gray_grid.png', 'green_grid.png'];
   entries.sort((a, b) => {
-    if (a.url === 'textures/metric_grid.png') return -1;
-    if (b.url === 'textures/metric_grid.png') return 1;
+    const fileA = a.url.split('/').pop() || '';
+    const fileB = b.url.split('/').pop() || '';
+    const idxA = sortOrder.indexOf(fileA);
+    const idxB = sortOrder.indexOf(fileB);
+    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+    if (idxA !== -1) return -1;
+    if (idxB !== -1) return 1;
     return a.label.localeCompare(b.label);
   });
 
@@ -77,6 +88,7 @@ export interface ControlsCallbacks {
   getBiometricDistance?: () => BiometricDistanceResult | null;
   onModelChange?: (modelUrl: string) => void;
   onTextureChange?: (textureUrl: string) => void;
+  getWallTexture?: () => string;
   onWallColorChange?: (colorHex: string) => void;
   getWallColor?: () => string;
   onAmbientLightColorChange?: (colorHex: string) => void;
@@ -281,11 +293,11 @@ export class Controls {
     const isDiorama = currentScene === SceneType.Diorama ? 'selected' : '';
     const isDebug = currentScene === SceneType.Debug ? 'selected' : '';
 
-    const initialWallColor = this.callbacks.getWallColor ? this.callbacks.getWallColor() : '#ffa131';
+    const currentTexture = this.callbacks.getWallTexture ? this.callbacks.getWallTexture() : 'textures/orange_grid.png';
     const availableTextures = getAvailableTextures();
     const textureOptionsHtml = availableTextures
       .map((t) => {
-        const isSelected = t.url === 'textures/metric_grid.png' ? 'selected' : '';
+        const isSelected = t.url === currentTexture ? 'selected' : '';
         return `<option value="${t.url}" ${isSelected}>${t.label}</option>`;
       })
       .join('\n');
@@ -356,22 +368,14 @@ export class Controls {
             </select>
           </div>
 
-          <div class="setting-group setting-color-group">
-            <label for="input-wall-tint">Wall Tint Color</label>
-            <div class="color-picker-wrapper">
-              <input type="color" id="input-wall-tint" value="${initialWallColor}">
-              <span id="wall-tint-val" class="color-hex-val">${initialWallColor}</span>
-            </div>
-          </div>
-
           <div class="setting-group">
-            <label>Color Presets:</label>
-            <div class="tint-presets-row" id="wall-tint-presets">
-              <button type="button" class="tint-preset-btn ${initialWallColor.toLowerCase() === '#ffa131' ? 'active' : ''}" data-color="#ffa131" title="Orange">🟧 Orange</button>
-              <button type="button" class="tint-preset-btn ${initialWallColor.toLowerCase() === '#ffffff' ? 'active' : ''}" data-color="#ffffff" title="White / Gray">⬜ Gray</button>
-              <button type="button" class="tint-preset-btn ${initialWallColor.toLowerCase() === '#46df90' ? 'active' : ''}" data-color="#46df90" title="Green">🟩 Green</button>
-              <button type="button" class="tint-preset-btn ${initialWallColor.toLowerCase() === '#a34be6' ? 'active' : ''}" data-color="#a34be6" title="Purple">🟪 Purple</button>
-              <button type="button" class="tint-preset-btn ${initialWallColor.toLowerCase() === '#38bdf8' ? 'active' : ''}" data-color="#38bdf8" title="Cyan">🟦 Cyan</button>
+            <label>Color Shortcuts:</label>
+            <div class="tint-presets-row" id="wall-texture-presets">
+              <button type="button" class="tint-preset-btn ${currentTexture.includes('orange') ? 'active' : ''}" data-texture="textures/orange_grid.png" title="Orange Grid">🟧 Orange</button>
+              <button type="button" class="tint-preset-btn ${currentTexture.includes('red') ? 'active' : ''}" data-texture="textures/red_grid.png" title="Red Grid">🟥 Red</button>
+              <button type="button" class="tint-preset-btn ${currentTexture.includes('blue') ? 'active' : ''}" data-texture="textures/blue_grid.png" title="Blue Grid">🟦 Blue</button>
+              <button type="button" class="tint-preset-btn ${currentTexture.includes('gray') ? 'active' : ''}" data-texture="textures/gray_grid.png" title="Gray Grid">⬜ Gray</button>
+              <button type="button" class="tint-preset-btn ${currentTexture.includes('green') ? 'active' : ''}" data-texture="textures/green_grid.png" title="Green Grid">🟩 Green</button>
             </div>
           </div>
 
@@ -492,43 +496,35 @@ export class Controls {
     });
 
     const textureSelect = this.scenePopover.querySelector('#scene-select-texture') as HTMLSelectElement;
-    textureSelect?.addEventListener('change', (e) => {
-      const url = (e.target as HTMLSelectElement).value;
-      if (url && this.callbacks.onTextureChange) {
-        this.callbacks.onTextureChange(url);
-      }
-    });
+    const texturePresetBtns = this.scenePopover.querySelectorAll<HTMLButtonElement>('.tint-preset-btn');
 
-    const wallTintInput = this.scenePopover.querySelector('#input-wall-tint') as HTMLInputElement;
-    const wallTintVal = this.scenePopover.querySelector('#wall-tint-val') as HTMLElement;
-    const tintPresetBtns = this.scenePopover.querySelectorAll<HTMLButtonElement>('.tint-preset-btn');
-
-    const setWallColor = (hex: string) => {
-      if (wallTintInput) wallTintInput.value = hex;
-      if (wallTintVal) wallTintVal.textContent = hex;
-      tintPresetBtns.forEach((btn) => {
-        const btnColor = btn.dataset.color?.toLowerCase();
-        if (btnColor === hex.toLowerCase()) {
+    const setActiveTexture = (url: string) => {
+      if (textureSelect) textureSelect.value = url;
+      texturePresetBtns.forEach((btn) => {
+        const btnTex = btn.dataset.texture;
+        if (btnTex === url) {
           btn.classList.add('active');
         } else {
           btn.classList.remove('active');
         }
       });
-      if (this.callbacks.onWallColorChange) {
-        this.callbacks.onWallColorChange(hex);
+      if (this.callbacks.onTextureChange) {
+        this.callbacks.onTextureChange(url);
       }
     };
 
-    wallTintInput?.addEventListener('input', (e) => {
-      const color = (e.target as HTMLInputElement).value;
-      setWallColor(color);
+    textureSelect?.addEventListener('change', (e) => {
+      const url = (e.target as HTMLSelectElement).value;
+      if (url) {
+        setActiveTexture(url);
+      }
     });
 
-    tintPresetBtns.forEach((btn) => {
+    texturePresetBtns.forEach((btn) => {
       btn.addEventListener('click', () => {
-        const color = btn.dataset.color;
-        if (color) {
-          setWallColor(color);
+        const tex = btn.dataset.texture;
+        if (tex) {
+          setActiveTexture(tex);
         }
       });
     });
