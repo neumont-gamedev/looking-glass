@@ -374,9 +374,6 @@ export class Controls {
             <span>Balanced</span>
             <span>Smooth 🛡️</span>
           </div>
-          <small style="color: var(--text-secondary); font-size: 0.72rem; line-height: 1.35; display: block; margin-top: 6px;">
-            Adaptive exponential smoothing balances jitter reduction when stationary with zero lag during head movement.
-          </small>
         </div>
 
         <!-- Screen & Calibration Section -->
