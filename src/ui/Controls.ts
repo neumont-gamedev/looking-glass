@@ -115,13 +115,9 @@ export class Controls {
     this.topBar.innerHTML = `
       <div class="topbar-left">
         <div class="topbar-brand">
-          <span class="brand-logo">🪞</span>
-          <div class="brand-text">
-            <span class="brand-title">Looking Glass</span>
-            <span class="brand-subtitle">Head-Coupled 3D Window</span>
-          </div>
+          <span class="app-title">Looking Glass</span>
         </div>
-        <div class="debug-hud-compact" id="debug-hud-box">
+        <div class="debug-hud-box" id="debug-hud-box">
           <div class="debug-hud-row">
             <div class="debug-hud-item">
               <span class="debug-hud-label">RENDER</span>

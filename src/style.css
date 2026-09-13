@@ -75,36 +75,30 @@ html, body {
   pointer-events: auto;
 }
 
-.logo-group {
+.topbar-brand {
   display: flex;
-  align-items: baseline;
-  gap: 12px;
+  align-items: center;
 }
 
 .app-title {
-  font-size: 1.15rem;
+  font-size: 1.2rem;
   font-weight: 700;
-  letter-spacing: 0.15em;
-  color: #fff;
-  text-shadow: 0 0 12px var(--accent-glow);
+  letter-spacing: 0.12em;
+  color: #ffffff;
+  text-shadow: 0 0 14px var(--accent-glow);
+  line-height: 1.2;
 }
 
-.app-tagline {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-  letter-spacing: 0.04em;
-}
-
-.debug-hud-box {
+.debug-hud-box,
+#debug-hud-box {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 6px 12px;
-  background: rgba(10, 14, 22, 0.82);
-  border: 1px solid rgba(0, 229, 255, 0.22);
-  border-radius: 6px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(8px);
+  gap: 5px;
+  padding: 8px 14px;
+  background: #000000;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.95);
   font-family: var(--font-mono, 'SF Mono', Consolas, monospace);
   pointer-events: auto;
 }
@@ -116,9 +110,9 @@ html, body {
 }
 
 .debug-hud-subrow {
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  padding-top: 3px;
-  font-size: 0.72rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  padding-top: 4px;
+  font-size: 0.74rem;
 }
 
 .debug-hud-item {
@@ -129,14 +123,14 @@ html, body {
 
 .debug-hud-label {
   font-size: 0.68rem;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.08em;
-  color: #64748b;
+  color: #94a3b8;
   text-transform: uppercase;
 }
 
 .debug-hud-val {
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   font-weight: 700;
   color: #00ff88;
   min-width: 20px;
@@ -144,22 +138,22 @@ html, body {
 
 .debug-hud-unit {
   font-size: 0.68rem;
-  color: #64748b;
+  color: #94a3b8;
 }
 
 .debug-hud-divider {
   width: 1px;
   height: 12px;
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.25);
 }
 
 .debug-hud-pose {
-  color: #94a3b8;
+  color: #cbd5e1;
   letter-spacing: 0.02em;
 }
 
 .pose-coord {
-  font-weight: 600;
+  font-weight: 700;
   color: #ffffff;
   margin-right: 6px;
 }
