@@ -363,6 +363,7 @@ export class CalibrationPanel {
               <div class="calib-preset-buttons">
                 <button type="button" class="btn-preset calib-preset-btn ${Math.abs(currentDiagIn - 14) < 0.8 ? 'active' : ''}" data-diag="14">14"</button>
                 <button type="button" class="btn-preset calib-preset-btn ${Math.abs(currentDiagIn - 16) < 0.8 ? 'active' : ''}" data-diag="16">16"</button>
+                <button type="button" class="btn-preset calib-preset-btn ${Math.abs(currentDiagIn - 24) < 0.8 ? 'active' : ''}" data-diag="24">24"</button>
                 <button type="button" class="btn-preset calib-preset-btn ${Math.abs(currentDiagIn - 27) < 0.8 ? 'active' : ''}" data-diag="27">27"</button>
                 <button type="button" class="btn-preset calib-preset-btn ${Math.abs(currentDiagIn - 32) < 0.8 ? 'active' : ''}" data-diag="32">32"</button>
               </div>

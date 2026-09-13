@@ -1,4 +1,5 @@
 /**
+/**
  * CalibrationManager.ts
  *
  * Manages loading, saving, and updating user calibration settings.
@@ -122,7 +123,7 @@ export class CalibrationManager {
   }
 
   /**
-   * Sets screen dimensions and diagonal directly from a monitor size preset (e.g. 14", 16", 27", 32").
+   * Sets screen dimensions and diagonal directly from a monitor size preset (e.g. 14", 16", 24", 27", 32").
    * Computes standard physical dimensions based on aspect ratio (standard 16:9, or 16:10 for common laptops).
    */
   public setMonitorPreset(diagonalInches: number, customWidthMeters?: number, customHeightMeters?: number): void {

@@ -394,6 +394,7 @@ export class Controls {
             <div class="calib-preset-buttons">
               <button type="button" class="btn-preset drawer-preset-btn ${Math.abs((calibData.screenDiagonalInches ?? 24) - 14) < 0.8 ? 'active' : ''}" data-diag="14">14"</button>
               <button type="button" class="btn-preset drawer-preset-btn ${Math.abs((calibData.screenDiagonalInches ?? 24) - 16) < 0.8 ? 'active' : ''}" data-diag="16">16"</button>
+              <button type="button" class="btn-preset drawer-preset-btn ${Math.abs((calibData.screenDiagonalInches ?? 24) - 24) < 0.8 ? 'active' : ''}" data-diag="24">24"</button>
               <button type="button" class="btn-preset drawer-preset-btn ${Math.abs((calibData.screenDiagonalInches ?? 24) - 27) < 0.8 ? 'active' : ''}" data-diag="27">27"</button>
               <button type="button" class="btn-preset drawer-preset-btn ${Math.abs((calibData.screenDiagonalInches ?? 24) - 32) < 0.8 ? 'active' : ''}" data-diag="32">32"</button>
             </div>
