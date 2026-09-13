@@ -148,8 +148,11 @@ export class LookingGlassApp {
           calib,
           result.timestamp
         );
-
-        this.currentRawPose = pose;
+        this.currentRawPose = this.poseEstimator.estimateRawPose(
+          result.landmarks,
+          screen,
+          result.timestamp
+        );
         this.perspectiveController.updatePose(pose, true, result.timestamp);
         this.statusPanel.setStatus(TrackingStatus.Active);
       } else {

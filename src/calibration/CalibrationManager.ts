@@ -9,7 +9,7 @@ import { Storage } from '../utils/Storage';
 import { CalibrationData, DEFAULT_CALIBRATION_DATA, DistanceCalibrationMode } from './CalibrationData';
 import { ScreenGeometry } from '../math/ScreenGeometry';
 
-const STORAGE_KEY = 'looking_glass_calibration_v1';
+const STORAGE_KEY = 'looking_glass_calibration_v2';
 
 export class CalibrationManager {
   private data: CalibrationData;
@@ -192,6 +192,14 @@ export class CalibrationManager {
     this.notify();
   }
 
+  public resetCenterOrigin(): void {
+    this.data.neutralOrigin.x = 0;
+    this.data.neutralOrigin.y = 0;
+    this.data.isCalibrated = false;
+    this.save();
+    this.notify();
+  }
+
   public resetToDefaults(): void {
     this.data = JSON.parse(JSON.stringify(DEFAULT_CALIBRATION_DATA));
     if (typeof window !== 'undefined' && window.innerWidth > 0 && window.innerHeight > 0) {
@@ -212,7 +220,25 @@ export class CalibrationManager {
   }
 
   private load(): CalibrationData {
-    const loaded = Storage.get<CalibrationData>(STORAGE_KEY, DEFAULT_CALIBRATION_DATA);
+    let loaded = Storage.get<CalibrationData | null>(STORAGE_KEY, null);
+    if (!loaded) {
+      // Migrate from v1 if present, but purge any stale/corrupted neutralOrigin X/Y offsets
+      const v1 = Storage.get<any>('looking_glass_calibration_v1', null);
+      if (v1) {
+        loaded = {
+          ...DEFAULT_CALIBRATION_DATA,
+          ...v1,
+          neutralOrigin: {
+            x: 0,
+            y: 0,
+            z: v1.neutralOrigin?.z ?? DEFAULT_CALIBRATION_DATA.neutralOrigin.z
+          },
+          isCalibrated: false
+        };
+        Storage.set(STORAGE_KEY, loaded);
+      }
+    }
+
     return {
       ...DEFAULT_CALIBRATION_DATA,
       ...loaded,

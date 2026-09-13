@@ -282,7 +282,10 @@ export class CalibrationPanel {
           <section class="calib-step">
             <h3>Step 1 — Neutral Center Position</h3>
             <p>Sit comfortably centered in front of your display and look directly at the center of the screen.</p>
-            <button class="btn btn-primary" id="calib-set-center-btn">Set Current Position as Center</button>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn btn-primary" id="calib-set-center-btn" style="flex: 1;">🎯 Set Center Position</button>
+              <button class="btn btn-secondary" id="calib-reset-center-btn" style="padding: 7px 10px; font-size: 0.78rem;" title="Reset Center to (0, 0)">↺ (0, 0)</button>
+            </div>
             <div class="status-note" id="calib-center-feedback">
               ${data.isCalibrated ? '✓ Calibrated center saved' : 'Origin: Default center (0, 0)'}
             </div>
@@ -452,7 +455,7 @@ export class CalibrationPanel {
       this.manager.setContinuousDepthTracking((e.target as HTMLInputElement).checked);
     });
 
-    // Center button
+    // Center buttons
     this.overlay.querySelector('#calib-set-center-btn')?.addEventListener('click', () => {
       const raw = this.callbacks.getCurrentRawPose();
       if (raw) {
@@ -464,6 +467,12 @@ export class CalibrationPanel {
         const feedback = this.overlay.querySelector('#calib-center-feedback');
         if (feedback) feedback.textContent = '✓ Default center (0, 0) set';
       }
+    });
+
+    this.overlay.querySelector('#calib-reset-center-btn')?.addEventListener('click', () => {
+      this.manager.resetCenterOrigin();
+      const feedback = this.overlay.querySelector('#calib-center-feedback');
+      if (feedback) feedback.textContent = '✓ Center reset to default (0, 0)';
     });
 
     // Distance manual slider

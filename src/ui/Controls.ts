@@ -399,14 +399,17 @@ export class Controls {
               <button type="button" class="btn-preset drawer-preset-btn ${Math.abs((calibData.screenDiagonalInches ?? 24) - 32) < 0.8 ? 'active' : ''}" data-diag="32">32"</button>
             </div>
           </div>
-          <div style="display: flex; flex-direction: column; gap: 6px;">
-            <button id="btn-drawer-recalibrate-center" class="btn" style="width: 100%; border: 1px solid rgba(0, 229, 255, 0.4); color: var(--accent-cyan); background: rgba(0, 229, 255, 0.08); cursor: pointer; padding: 7px 12px; font-size: 0.78rem; transition: background 0.2s;">
-              🎯 Set Center Position
+          <div style="display: flex; gap: 6px;">
+            <button id="btn-drawer-recalibrate-center" class="btn" style="flex: 1; border: 1px solid rgba(0, 229, 255, 0.4); color: var(--accent-cyan); background: rgba(0, 229, 255, 0.08); cursor: pointer; padding: 7px 10px; font-size: 0.76rem; transition: background 0.2s;">
+              🎯 Set Center
             </button>
-            <button id="btn-drawer-open-calibration" class="btn btn-primary" style="width: 100%; cursor: pointer; padding: 7px 12px; font-size: 0.78rem;">
-              ⚙ Open Guided Calibration Window
+            <button id="btn-drawer-reset-center" class="btn" style="border: 1px solid rgba(255, 255, 255, 0.15); color: var(--text-secondary); background: rgba(255, 255, 255, 0.05); cursor: pointer; padding: 7px 10px; font-size: 0.76rem; transition: background 0.2s;" title="Reset Center to (0, 0)">
+              ↺ (0, 0)
             </button>
           </div>
+          <button id="btn-drawer-open-calibration" class="btn btn-primary" style="width: 100%; margin-top: 6px; cursor: pointer; padding: 7px 12px; font-size: 0.78rem;">
+            ⚙ Open Guided Calibration Window
+          </button>
           <div id="drawer-center-feedback" class="status-note" style="display: none; margin-top: 6px; font-size: 0.75rem; color: #10b981; font-weight: 500;"></div>
         </div>
 
@@ -450,6 +453,18 @@ export class Controls {
       const feedback = this.settingsDrawer.querySelector('#drawer-center-feedback') as HTMLElement;
       if (feedback) {
         feedback.textContent = '✓ Neutral center calibrated successfully!';
+        feedback.style.display = 'block';
+        setTimeout(() => {
+          if (feedback) feedback.style.display = 'none';
+        }, 3000);
+      }
+    });
+
+    this.settingsDrawer.querySelector('#btn-drawer-reset-center')?.addEventListener('click', () => {
+      this.calibrationManager.resetCenterOrigin();
+      const feedback = this.settingsDrawer.querySelector('#drawer-center-feedback') as HTMLElement;
+      if (feedback) {
+        feedback.textContent = '✓ Center reset to default (0, 0)';
         feedback.style.display = 'block';
         setTimeout(() => {
           if (feedback) feedback.style.display = 'none';
@@ -527,6 +542,7 @@ export class Controls {
     // Reset Settings to Defaults button
     const resetSettingsBtn = this.settingsDrawer.querySelector('#btn-reset-settings') as HTMLButtonElement;
     resetSettingsBtn?.addEventListener('click', () => {
+      this.calibrationManager.resetCenterOrigin();
       const defaults = this.settingsManager.resetToDefaults();
       this.syncUiFromSettings(defaults);
       this.perspectiveController.setProjectionMode(defaults.projectionMode);

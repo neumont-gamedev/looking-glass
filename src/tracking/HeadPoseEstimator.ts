@@ -171,6 +171,41 @@ export class HeadPoseEstimator {
   }
 
   /**
+   * Computes the uncalibrated raw metric head pose relative to the physical camera center.
+   * Used for calibrating the neutral origin position.
+   */
+  public estimateRawPose(
+    landmarks: NormalizedLandmark[],
+    screen: ScreenGeometry,
+    timestamp: number
+  ): ViewerPose {
+    const eyeMid = this.getEyeMidpoint(landmarks);
+    const estimatedDistance = this.estimateDistanceMeters(landmarks, screen);
+
+    const rawPos = CoordinateMapper.landmarkToViewerPosition(
+      eyeMid.x,
+      eyeMid.y,
+      estimatedDistance,
+      screen,
+      this.cameraHFOV,
+      false
+    );
+
+    const rotation = this.estimateHeadRotation(landmarks);
+
+    return {
+      x: rawPos.x,
+      y: rawPos.y,
+      z: rawPos.z,
+      yaw: rotation.yaw,
+      pitch: rotation.pitch,
+      roll: rotation.roll,
+      confidence: 1.0,
+      timestamp
+    };
+  }
+
+  /**
    * Converts landmarks into calibrated ViewerPose in meters.
    */
   public estimatePose(
