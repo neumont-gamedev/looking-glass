@@ -42,6 +42,7 @@ function getAvailableTextures(): { url: string; label: string }[] {
     else if (lower.includes('green')) emoji = '🟩 ';
     else if (lower.includes('purple')) emoji = '🟪 ';
     else if (lower.includes('blue') || lower.includes('cyan')) emoji = '🟦 ';
+    else if (lower.includes('metric')) emoji = '📐 ';
     else if (lower.includes('dark') || lower.includes('black')) emoji = '⬛ ';
 
     entries.push({
@@ -56,7 +57,8 @@ function getAvailableTextures(): { url: string; label: string }[] {
       { url: 'textures/orange_grid.png', label: '🟧 Orange Grid' },
       { url: 'textures/gray_grid.png', label: '⬜ Gray Grid' },
       { url: 'textures/green_grid.png', label: '🟩 Green Grid' },
-      { url: 'textures/purple_grid.png', label: '🟪 Purple Grid' }
+      { url: 'textures/purple_grid.png', label: '🟪 Purple Grid' },
+      { url: 'textures/metric_grid.png', label: '📐 Metric Grid' }
     ];
   }
 
