@@ -19,6 +19,57 @@ import { SettingsManager, InputMode, AppSettings, computeSmoothingParameters, ge
 
 export { InputMode } from '../settings/SettingsManager';
 
+/**
+ * Dynamically queries the textures in public/textures/ folder.
+ */
+function getAvailableTextures(): { url: string; label: string }[] {
+  const globResult = import.meta.glob('../../public/textures/*.{png,jpg,jpeg,webp,svg}', { eager: true });
+  const entries: { url: string; label: string }[] = [];
+
+  for (const path of Object.keys(globResult)) {
+    const filename = path.split('/').pop() || '';
+    if (!filename) continue;
+    const baseName = filename.replace(/\.[^/.]+$/, '');
+    const cleanName = baseName
+      .split(/[-_]/)
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+
+    let emoji = '🖼️ ';
+    const lower = cleanName.toLowerCase();
+    if (lower.includes('orange')) emoji = '🟧 ';
+    else if (lower.includes('gray') || lower.includes('grey')) emoji = '⬜ ';
+    else if (lower.includes('green')) emoji = '🟩 ';
+    else if (lower.includes('purple')) emoji = '🟪 ';
+    else if (lower.includes('blue') || lower.includes('cyan')) emoji = '🟦 ';
+    else if (lower.includes('dark') || lower.includes('black')) emoji = '⬛ ';
+
+    entries.push({
+      url: `textures/${filename}`,
+      label: `${emoji}${cleanName}`
+    });
+  }
+
+  // Fallback to the exact files present in public/textures if glob is empty in bundling
+  if (entries.length === 0) {
+    return [
+      { url: 'textures/orange_grid.png', label: '🟧 Orange Grid' },
+      { url: 'textures/gray_grid.png', label: '⬜ Gray Grid' },
+      { url: 'textures/green_grid.png', label: '🟩 Green Grid' },
+      { url: 'textures/purple_grid.png', label: '🟪 Purple Grid' }
+    ];
+  }
+
+  // Sort with orange_grid first as default, then alphabetically
+  entries.sort((a, b) => {
+    if (a.url === 'textures/orange_grid.png') return -1;
+    if (b.url === 'textures/orange_grid.png') return 1;
+    return a.label.localeCompare(b.label);
+  });
+
+  return entries;
+}
+
 export interface ControlsCallbacks {
   onInputModeChange: (mode: InputMode) => void;
   onSceneChange: (sceneType: SceneType) => void;
@@ -217,6 +268,14 @@ export class Controls {
     const isDiorama = currentScene === SceneType.Diorama ? 'selected' : '';
     const isDebug = currentScene === SceneType.Debug ? 'selected' : '';
 
+    const availableTextures = getAvailableTextures();
+    const textureOptionsHtml = availableTextures
+      .map((t) => {
+        const isSelected = t.url === 'textures/orange_grid.png' ? 'selected' : '';
+        return `<option value="${t.url}" ${isSelected}>${t.label}</option>`;
+      })
+      .join('\n');
+
     this.scenePopover.innerHTML = `
       <div class="drawer-header">
         <h3>🎬 Scenes</h3>
@@ -264,10 +323,7 @@ export class Controls {
           <div class="setting-group">
             <label for="scene-select-texture">Wall Texture (10cm Grid):</label>
             <select id="scene-select-texture">
-              <option value="textures/orange_grid.png">🟧 Orange Grid</option>
-              <option value="textures/cyan_grid.png">🟦 Cyan Grid</option>
-              <option value="textures/dark_grid.png">⬛ Dark Grid</option>
-              <option value="textures/checkerboard.png">🏁 Checkerboard</option>
+              ${textureOptionsHtml}
             </select>
           </div>
 
