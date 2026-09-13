@@ -54,18 +54,14 @@ function getAvailableTextures(): { url: string; label: string }[] {
   // Fallback to the exact files present in public/textures if glob is empty in bundling
   if (entries.length === 0) {
     return [
-      { url: 'textures/orange_grid.png', label: '🟧 Orange Grid' },
-      { url: 'textures/gray_grid.png', label: '⬜ Gray Grid' },
-      { url: 'textures/green_grid.png', label: '🟩 Green Grid' },
-      { url: 'textures/purple_grid.png', label: '🟪 Purple Grid' },
-      { url: 'textures/metric_grid.png', label: '📐 Metric Grid' }
+      { url: 'textures/metric_grid.png', label: '📐 Metric Grid (10cm)' }
     ];
   }
 
-  // Sort with orange_grid first as default, then alphabetically
+  // Sort with metric_grid first as default, then alphabetically
   entries.sort((a, b) => {
-    if (a.url === 'textures/orange_grid.png') return -1;
-    if (b.url === 'textures/orange_grid.png') return 1;
+    if (a.url === 'textures/metric_grid.png') return -1;
+    if (b.url === 'textures/metric_grid.png') return 1;
     return a.label.localeCompare(b.label);
   });
 
@@ -81,6 +77,8 @@ export interface ControlsCallbacks {
   getBiometricDistance?: () => BiometricDistanceResult | null;
   onModelChange?: (modelUrl: string) => void;
   onTextureChange?: (textureUrl: string) => void;
+  onWallColorChange?: (colorHex: string) => void;
+  getWallColor?: () => string;
   onAmbientLightColorChange?: (colorHex: string) => void;
   onDirLightColorChange?: (colorHex: string) => void;
   onDirLightRotationChange?: (rotXDeg: number, rotZDeg: number) => void;
@@ -283,10 +281,11 @@ export class Controls {
     const isDiorama = currentScene === SceneType.Diorama ? 'selected' : '';
     const isDebug = currentScene === SceneType.Debug ? 'selected' : '';
 
+    const initialWallColor = this.callbacks.getWallColor ? this.callbacks.getWallColor() : '#ffa131';
     const availableTextures = getAvailableTextures();
     const textureOptionsHtml = availableTextures
       .map((t) => {
-        const isSelected = t.url === 'textures/orange_grid.png' ? 'selected' : '';
+        const isSelected = t.url === 'textures/metric_grid.png' ? 'selected' : '';
         return `<option value="${t.url}" ${isSelected}>${t.label}</option>`;
       })
       .join('\n');
@@ -355,6 +354,25 @@ export class Controls {
             <select id="scene-select-texture">
               ${textureOptionsHtml}
             </select>
+          </div>
+
+          <div class="setting-group setting-color-group">
+            <label for="input-wall-tint">Wall Tint Color</label>
+            <div class="color-picker-wrapper">
+              <input type="color" id="input-wall-tint" value="${initialWallColor}">
+              <span id="wall-tint-val" class="color-hex-val">${initialWallColor}</span>
+            </div>
+          </div>
+
+          <div class="setting-group">
+            <label>Color Presets:</label>
+            <div class="tint-presets-row" id="wall-tint-presets">
+              <button type="button" class="tint-preset-btn ${initialWallColor.toLowerCase() === '#ffa131' ? 'active' : ''}" data-color="#ffa131" title="Orange">🟧 Orange</button>
+              <button type="button" class="tint-preset-btn ${initialWallColor.toLowerCase() === '#ffffff' ? 'active' : ''}" data-color="#ffffff" title="White / Gray">⬜ Gray</button>
+              <button type="button" class="tint-preset-btn ${initialWallColor.toLowerCase() === '#46df90' ? 'active' : ''}" data-color="#46df90" title="Green">🟩 Green</button>
+              <button type="button" class="tint-preset-btn ${initialWallColor.toLowerCase() === '#a34be6' ? 'active' : ''}" data-color="#a34be6" title="Purple">🟪 Purple</button>
+              <button type="button" class="tint-preset-btn ${initialWallColor.toLowerCase() === '#38bdf8' ? 'active' : ''}" data-color="#38bdf8" title="Cyan">🟦 Cyan</button>
+            </div>
           </div>
 
           <div class="settings-subsection-title">💡 Model Viewer Lighting</div>
@@ -479,6 +497,40 @@ export class Controls {
       if (url && this.callbacks.onTextureChange) {
         this.callbacks.onTextureChange(url);
       }
+    });
+
+    const wallTintInput = this.scenePopover.querySelector('#input-wall-tint') as HTMLInputElement;
+    const wallTintVal = this.scenePopover.querySelector('#wall-tint-val') as HTMLElement;
+    const tintPresetBtns = this.scenePopover.querySelectorAll<HTMLButtonElement>('.tint-preset-btn');
+
+    const setWallColor = (hex: string) => {
+      if (wallTintInput) wallTintInput.value = hex;
+      if (wallTintVal) wallTintVal.textContent = hex;
+      tintPresetBtns.forEach((btn) => {
+        const btnColor = btn.dataset.color?.toLowerCase();
+        if (btnColor === hex.toLowerCase()) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
+      });
+      if (this.callbacks.onWallColorChange) {
+        this.callbacks.onWallColorChange(hex);
+      }
+    };
+
+    wallTintInput?.addEventListener('input', (e) => {
+      const color = (e.target as HTMLInputElement).value;
+      setWallColor(color);
+    });
+
+    tintPresetBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const color = btn.dataset.color;
+        if (color) {
+          setWallColor(color);
+        }
+      });
     });
 
     const ambientInput = this.scenePopover.querySelector('#input-ambient-color') as HTMLInputElement;

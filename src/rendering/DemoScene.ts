@@ -34,7 +34,8 @@ export class DemoScene {
   private currentMixer: THREE.AnimationMixer | null = null;
   private wallMeshes: THREE.Mesh[] = [];
   private currentModelUrl: string = 'models/fish01.glb';
-  private currentTextureUrl: string = 'textures/orange_grid.png';
+  private currentTextureUrl: string = 'textures/metric_grid.png';
+  private currentWallColor: string = '#ffa131';
   private currentScreen: ScreenGeometry | null = null;
   private modelZ: number = -0.25;
   private modelScaleMultiplier: number = 1.0;
@@ -270,8 +271,31 @@ export class DemoScene {
   }
 
   /**
+   * Sets the active wall tint color on the 5 walls in the Model Viewer room.
+   */
+  public setWallColor(colorHex: string): void {
+    this.currentWallColor = colorHex;
+    if (this.currentSceneType !== SceneType.Diorama) return;
+
+    this.wallMeshes.forEach((mesh) => {
+      const mat = mesh.material as THREE.MeshStandardMaterial;
+      if (mat) {
+        mat.color.set(colorHex);
+        mat.needsUpdate = true;
+      }
+    });
+  }
+
+  /**
+   * Gets the active wall tint color.
+   */
+  public getWallColor(): string {
+    return this.currentWallColor;
+  }
+
+  /**
    * Builds the clean 5-walled Model Viewer room extending behind the monitor.
-   * Walls are mapped with the selected texture (default: orange_grid.png).
+   * Walls are mapped with the selected texture (default: metric_grid.png) and tinted with currentWallColor.
    * UVs repeat every 10cm (0.10m) in physical world space.
    */
   private buildDiorama(screen: ScreenGeometry): void {
@@ -291,6 +315,7 @@ export class DemoScene {
       texture.repeat.set(wMeters / 0.10, hMeters / 0.10);
 
       return new THREE.MeshStandardMaterial({
+        color: new THREE.Color(this.currentWallColor),
         map: texture,
         roughness: 0.55,
         metalness: 0.15

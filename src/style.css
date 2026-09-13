@@ -480,6 +480,42 @@ body.is-fullscreen .hud-topbar,
   min-width: 58px;
 }
 
+.tint-presets-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.tint-preset-btn {
+  flex: 1;
+  padding: 6px 2px;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid var(--bg-surface-border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 0.72rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.tint-preset-btn:hover {
+  border-color: var(--accent-cyan);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.tint-preset-btn.active {
+  border-color: var(--accent-cyan);
+  background: rgba(0, 229, 255, 0.18);
+  box-shadow: 0 0 8px rgba(0, 229, 255, 0.3);
+  font-weight: 600;
+}
+
 select {
   width: 100%;
   padding: 8px 10px;
