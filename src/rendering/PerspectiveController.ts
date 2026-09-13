@@ -16,11 +16,9 @@ import { ViewerPose } from '../tracking/TrackingState';
 import { VectorFilter } from '../filtering/VectorFilter';
 import { KinematicPredictor } from '../filtering/KinematicPredictor';
 import { computeSmoothingParameters } from '../settings/SettingsManager';
+import { ProjectionMode } from './ProjectionMode';
 
-export enum ProjectionMode {
-  Accurate = 'Accurate',
-  Simple = 'Simple'
-}
+export { ProjectionMode } from './ProjectionMode';
 
 export class PerspectiveController {
   public readonly camera: THREE.PerspectiveCamera;

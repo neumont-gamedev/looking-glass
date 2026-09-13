@@ -7,7 +7,7 @@
 
 import { Storage } from '../utils/Storage';
 import { SceneType } from '../rendering/DemoScene';
-import { ProjectionMode } from '../rendering/PerspectiveController';
+import { ProjectionMode } from '../rendering/ProjectionMode';
 
 export enum InputMode {
   Webcam = 'Webcam',
