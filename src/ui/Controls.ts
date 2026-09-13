@@ -31,7 +31,7 @@ export class Controls {
   private perspectiveController: PerspectiveController;
   private debugView: TrackingDebugView;
   private calibrationPanel: CalibrationPanel;
-  private calibrationManager: CalibrationManager;
+  public readonly calibrationManager: CalibrationManager;
   private settingsManager: SettingsManager;
   private callbacks: ControlsCallbacks;
 
@@ -199,14 +199,14 @@ export class Controls {
 
   public setDebugHudVisible(visible: boolean): boolean {
     this.isDebugHudVisible = visible;
-    this.settingsManager.updateSettings({ debugHudVisible: visible });
+    this.settingsManager.updateSettings({
+      debugHudVisible: visible,
+      webcamPipVisible: visible
+    });
     if (this.debugHudBoxEl) {
       this.debugHudBoxEl.style.display = this.isDebugHudVisible ? 'flex' : 'none';
     }
-    const debugHudToggle = this.settingsDrawer?.querySelector('#toggle-debug-hud') as HTMLInputElement;
-    if (debugHudToggle && debugHudToggle.checked !== this.isDebugHudVisible) {
-      debugHudToggle.checked = this.isDebugHudVisible;
-    }
+    this.debugView.setVisible(visible);
     if (this.callbacks.onToggleDebugHud) {
       this.callbacks.onToggleDebugHud(this.isDebugHudVisible);
     }
@@ -392,28 +392,6 @@ export class Controls {
           </small>
         </div>
 
-        <!-- Tracking Direction -->
-        <div class="setting-group">
-          <h4>Tracking Direction</h4>
-          <label class="checkbox-row">
-            <input type="checkbox" id="toggle-invert-x" ${this.calibrationManager.getData().invertHorizontal ? 'checked' : ''} />
-            <span>Invert Horizontal Tracking</span>
-          </label>
-        </div>
-
-        <!-- Debug Visuals -->
-        <div class="setting-group">
-          <h4>Visual Overlays</h4>
-          <label class="checkbox-row">
-            <input type="checkbox" id="toggle-debug-hud" ${settings.debugHudVisible ? 'checked' : ''} />
-            <span>Show Debug Telemetry HUD & Origin Axes (Hot-key: ~)</span>
-          </label>
-          <label class="checkbox-row">
-            <input type="checkbox" id="toggle-webcam-pip" ${settings.webcamPipVisible ? 'checked' : ''} />
-            <span>Show Webcam PIP & Face Landmarks</span>
-          </label>
-        </div>
-
         <!-- Open Calibration shortcut -->
         <div class="setting-group" style="margin-top: 14px; border-top: 1px solid var(--bg-surface-border); padding-top: 12px;">
           <button id="btn-drawer-open-calibration" class="btn" style="width: 100%; border: 1px solid rgba(0, 229, 255, 0.4); color: var(--accent-cyan); background: rgba(0, 229, 255, 0.08); cursor: pointer; padding: 7px 12px; font-size: 0.78rem; transition: background 0.2s;">
@@ -517,32 +495,6 @@ export class Controls {
       this.settingsManager.updateSettings({ beta: val });
     });
 
-    // Invert horizontal toggle
-    const invertXToggle = this.settingsDrawer.querySelector('#toggle-invert-x') as HTMLInputElement;
-    invertXToggle?.addEventListener('change', (e) => {
-      this.calibrationManager.setInvertHorizontal((e.target as HTMLInputElement).checked);
-    });
-
-    this.calibrationManager.subscribe((calib) => {
-      if (invertXToggle) {
-        invertXToggle.checked = !!calib.invertHorizontal;
-      }
-    });
-
-    // Debug HUD & Origin Axes toggle
-    const debugHudToggle = this.settingsDrawer.querySelector('#toggle-debug-hud') as HTMLInputElement;
-    debugHudToggle?.addEventListener('change', (e) => {
-      this.setDebugHudVisible((e.target as HTMLInputElement).checked);
-    });
-
-    // Webcam PIP toggle
-    const pipToggle = this.settingsDrawer.querySelector('#toggle-webcam-pip') as HTMLInputElement;
-    pipToggle?.addEventListener('change', (e) => {
-      const checked = (e.target as HTMLInputElement).checked;
-      this.debugView.setVisible(checked);
-      this.settingsManager.updateSettings({ webcamPipVisible: checked });
-    });
-
     // Reset Settings to Defaults button
     const resetSettingsBtn = this.settingsDrawer.querySelector('#btn-reset-settings') as HTMLButtonElement;
     resetSettingsBtn?.addEventListener('click', () => {
@@ -598,8 +550,5 @@ export class Controls {
     if (betaVal) betaVal.textContent = settings.beta.toFixed(1);
 
     this.setDebugHudVisible(settings.debugHudVisible);
-    this.debugView.setVisible(settings.webcamPipVisible);
-    const pipToggle = this.settingsDrawer.querySelector('#toggle-webcam-pip') as HTMLInputElement;
-    if (pipToggle) pipToggle.checked = settings.webcamPipVisible;
   }
 }

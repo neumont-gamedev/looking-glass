@@ -388,12 +388,6 @@ export class CalibrationPanel {
               <label>Depth (Z): <span id="sens-z-val">${data.sensitivity.z.toFixed(1)}x</span></label>
               <input type="range" id="sens-z-slider" min="0.3" max="2.5" step="0.1" value="${data.sensitivity.z}" />
             </div>
-            <div style="margin-top: 14px;">
-              <label class="checkbox-row">
-                <input type="checkbox" id="calib-invert-x" ${data.invertHorizontal ? 'checked' : ''} />
-                <span>Invert Horizontal Tracking Direction</span>
-              </label>
-            </div>
           </section>
         </div>
         <div class="modal-footer">
@@ -523,12 +517,6 @@ export class CalibrationPanel {
     setupSens('sens-x-slider', 'sens-x-val', 'x');
     setupSens('sens-y-slider', 'sens-y-val', 'y');
     setupSens('sens-z-slider', 'sens-z-val', 'z');
-
-    // Invert horizontal tracking toggle
-    const invertXToggle = this.overlay.querySelector('#calib-invert-x') as HTMLInputElement;
-    invertXToggle?.addEventListener('change', (e) => {
-      this.manager.setInvertHorizontal((e.target as HTMLInputElement).checked);
-    });
 
     // Reset button
     this.overlay.querySelector('#calib-reset-btn')?.addEventListener('click', () => {
