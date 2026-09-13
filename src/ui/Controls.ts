@@ -241,6 +241,10 @@ export class Controls {
       const isFullscreen = !!document.fullscreenElement;
       document.body.classList.toggle('is-fullscreen', isFullscreen);
       this.topBar.classList.toggle('is-fullscreen', isFullscreen);
+      if (isFullscreen) {
+        this.closeScenePopover();
+        this.closeDrawer();
+      }
     });
 
     this.topBar.querySelector('#btn-scene-menu')?.addEventListener('click', (e) => {

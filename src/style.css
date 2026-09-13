@@ -80,12 +80,23 @@ html, body {
   align-items: center;
 }
 
-/* Remove/hide title when going full screen */
+/* Remove/hide title and menu buttons when going full screen */
 :fullscreen .topbar-brand,
 :-webkit-full-screen .topbar-brand,
 body.is-fullscreen .topbar-brand,
-.hud-topbar.is-fullscreen .topbar-brand {
+.hud-topbar.is-fullscreen .topbar-brand,
+:fullscreen .topbar-actions,
+:-webkit-full-screen .topbar-actions,
+body.is-fullscreen .topbar-actions,
+.hud-topbar.is-fullscreen .topbar-actions {
   display: none !important;
+}
+
+:fullscreen .hud-topbar,
+:-webkit-full-screen .hud-topbar,
+body.is-fullscreen .hud-topbar,
+.hud-topbar.is-fullscreen {
+  background: transparent !important;
 }
 
 .app-title {
