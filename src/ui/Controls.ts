@@ -248,27 +248,18 @@ export class Controls {
       </div>
       <div class="scene-popover-list">
         <button class="scene-card ${currentScene === SceneType.Aquarium ? 'active' : ''}" data-scene="${SceneType.Aquarium}">
-          <div class="scene-card-icon">🐠</div>
-          <div class="scene-card-body">
-            <div class="scene-card-title">Virtual Aquarium</div>
-            <div class="scene-card-desc">Interactive swimming fish, kelp & feeding</div>
-          </div>
+          <span class="scene-card-icon">🐠</span>
+          <span class="scene-card-title">Aquarium</span>
           <span class="scene-card-check">✓</span>
         </button>
         <button class="scene-card ${currentScene === SceneType.Diorama ? 'active' : ''}" data-scene="${SceneType.Diorama}">
-          <div class="scene-card-icon">📦</div>
-          <div class="scene-card-body">
-            <div class="scene-card-title">Diorama Shadow Box</div>
-            <div class="scene-card-desc">Floating geometric shapes & shadow box depth</div>
-          </div>
+          <span class="scene-card-icon">📦</span>
+          <span class="scene-card-title">Model Viewer</span>
           <span class="scene-card-check">✓</span>
         </button>
         <button class="scene-card ${currentScene === SceneType.Debug ? 'active' : ''}" data-scene="${SceneType.Debug}">
-          <div class="scene-card-icon">📐</div>
-          <div class="scene-card-body">
-            <div class="scene-card-title">Debug Calibration Grids</div>
-            <div class="scene-card-desc">XYZ coordinate axes & depth test markers</div>
-          </div>
+          <span class="scene-card-icon">📐</span>
+          <span class="scene-card-title">Calibration</span>
           <span class="scene-card-check">✓</span>
         </button>
       </div>
@@ -392,8 +383,8 @@ export class Controls {
     if (labelEl) {
       const sceneNames: Record<SceneType, string> = {
         [SceneType.Aquarium]: 'Aquarium',
-        [SceneType.Diorama]: 'Diorama',
-        [SceneType.Debug]: 'Debug Grids'
+        [SceneType.Diorama]: 'Model Viewer',
+        [SceneType.Debug]: 'Calibration'
       };
       labelEl.textContent = sceneNames[sceneType] ?? 'Scenes';
     }
