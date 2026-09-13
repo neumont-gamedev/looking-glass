@@ -2,12 +2,14 @@
  * DemoScene.ts
  *
  * Provides two test environments:
- * 1. Diorama Shadow Box: A rich miniature diorama room extending behind the screen
- *    with multi-depth objects, realistic lighting, shadows, and floating particles.
+ * 1. Model Viewer (Diorama): 5 walls textured with grid pattern (default: orange_grid.png),
+ *    featuring an interactive 3D model viewer for custom .glb models with shadow casting
+ *    and skeletal animation support.
  * 2. Debug Scene: Coordinate axes, depth markers, and calibration spheres.
  */
 
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { ScreenGeometry } from '../math/ScreenGeometry';
 
 export enum SceneType {
@@ -24,7 +26,20 @@ export class DemoScene {
   private axesVisible: boolean = true;
   private currentSceneType: SceneType = SceneType.Diorama;
 
+  // Model Viewer subsystems
+  private gltfLoader: GLTFLoader = new GLTFLoader();
+  private textureLoader: THREE.TextureLoader = new THREE.TextureLoader();
+  private modelGroup: THREE.Group = new THREE.Group();
+  private modelWrapper: THREE.Group | null = null;
+  private currentMixer: THREE.AnimationMixer | null = null;
+  private wallMeshes: THREE.Mesh[] = [];
+  private currentModelUrl: string = 'models/fish01.glb';
+  private currentTextureUrl: string = 'textures/orange_grid.png';
+  private currentScreen: ScreenGeometry | null = null;
+
   constructor(screen: ScreenGeometry) {
+    this.currentScreen = screen;
+    this.group.add(this.modelGroup);
     this.buildDiorama(screen);
   }
 
@@ -42,8 +57,8 @@ export class DemoScene {
   public setSceneType(type: SceneType, screen: ScreenGeometry): void {
     if (this.currentSceneType === type) return;
     this.currentSceneType = type;
+    this.currentScreen = screen;
 
-    // Clear current
     this.clear();
 
     if (type === SceneType.Diorama) {
@@ -54,6 +69,7 @@ export class DemoScene {
   }
 
   public rebuild(screen: ScreenGeometry): void {
+    this.currentScreen = screen;
     this.clear();
     if (this.currentSceneType === SceneType.Diorama) {
       this.buildDiorama(screen);
@@ -63,8 +79,28 @@ export class DemoScene {
   }
 
   private clear(): void {
-    while (this.group.children.length > 0) {
-      const child = this.group.children[0];
+    if (this.currentMixer) {
+      this.currentMixer.stopAllAction();
+      this.currentMixer = null;
+    }
+
+    // Clear model group
+    while (this.modelGroup.children.length > 0) {
+      const child = this.modelGroup.children[0];
+      this.modelGroup.remove(child);
+    }
+    this.modelWrapper = null;
+    this.wallMeshes = [];
+
+    // Clear main group except modelGroup
+    const toRemove: THREE.Object3D[] = [];
+    this.group.children.forEach((child) => {
+      if (child !== this.modelGroup) {
+        toRemove.push(child);
+      }
+    });
+
+    toRemove.forEach((child) => {
       this.group.remove(child);
       if ((child as THREE.Mesh).geometry) {
         (child as THREE.Mesh).geometry.dispose();
@@ -81,221 +117,177 @@ export class DemoScene {
           mat.dispose();
         }
       }
-    }
+    });
+
     this.animatedMeshes = [];
     this.particles = null;
     this.axes = null;
   }
 
   /**
-   * Builds the Diorama Shadow Box room extending behind the monitor (Z <= 0).
+   * Sets the active 3D model in the Model Viewer room.
+   */
+  public async setModel(modelUrl: string): Promise<void> {
+    this.currentModelUrl = modelUrl;
+    if (this.currentSceneType !== SceneType.Diorama) return;
+
+    while (this.modelGroup.children.length > 0) {
+      const child = this.modelGroup.children[0];
+      this.modelGroup.remove(child);
+    }
+    if (this.currentMixer) {
+      this.currentMixer.stopAllAction();
+      this.currentMixer = null;
+    }
+    this.modelWrapper = null;
+
+    try {
+      const gltf = await this.gltfLoader.loadAsync(modelUrl);
+      const scene = gltf.scene;
+
+      // Compute bounding box and normalize scale
+      const bbox = new THREE.Box3().setFromObject(scene);
+      const size = new THREE.Vector3();
+      bbox.getSize(size);
+      const maxDim = Math.max(0.001, size.x, size.y, size.z);
+
+      // Target size ~ 18cm (0.18m)
+      const targetSize = Math.min((this.currentScreen?.height ?? 0.3) * 0.55, 0.20);
+      const scale = targetSize / maxDim;
+      scene.scale.setScalar(scale);
+
+      // Center pivot point
+      const center = new THREE.Vector3();
+      bbox.getCenter(center);
+      scene.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
+
+      // Enable shadows on all meshes
+      scene.traverse((obj) => {
+        if ((obj as THREE.Mesh).isMesh) {
+          obj.castShadow = true;
+          obj.receiveShadow = true;
+        }
+      });
+
+      this.modelWrapper = new THREE.Group();
+      this.modelWrapper.add(scene);
+      // Position model at center depth (Z = -0.25m)
+      this.modelWrapper.position.set(0, 0, -0.25);
+      this.modelGroup.add(this.modelWrapper);
+
+      // Bind skeletal animation if present
+      if (gltf.animations && gltf.animations.length > 0) {
+        this.currentMixer = new THREE.AnimationMixer(scene);
+        const action = this.currentMixer.clipAction(gltf.animations[0]);
+        action.play();
+      }
+    } catch (err) {
+      console.error(`[DemoScene] Failed to load model ${modelUrl}:`, err);
+    }
+  }
+
+  /**
+   * Sets the active wall texture on the 5 walls in the Model Viewer room.
+   */
+  public setWallTexture(textureUrl: string): void {
+    this.currentTextureUrl = textureUrl;
+    if (this.currentSceneType !== SceneType.Diorama) return;
+
+    this.wallMeshes.forEach((mesh) => {
+      const mat = mesh.material as THREE.MeshStandardMaterial;
+      if (mat) {
+        const oldRepeat = mat.map ? mat.map.repeat.clone() : new THREE.Vector2(2, 2);
+        const newTex = this.textureLoader.load(textureUrl);
+        newTex.wrapS = THREE.RepeatWrapping;
+        newTex.wrapT = THREE.RepeatWrapping;
+        newTex.colorSpace = THREE.SRGBColorSpace;
+        newTex.repeat.copy(oldRepeat);
+        mat.map = newTex;
+        mat.needsUpdate = true;
+      }
+    });
+  }
+
+  /**
+   * Builds the clean 5-walled Model Viewer room extending behind the monitor.
+   * Walls are mapped with the selected texture (default: orange_grid.png).
    */
   private buildDiorama(screen: ScreenGeometry): void {
     const W = screen.width;
     const H = screen.height;
-    const depth = 0.8; // Room is 80cm deep behind the screen
+    const depth = 0.50; // 50cm deep diorama box
 
-    // Materials
-    const wallMaterial = new THREE.MeshStandardMaterial({
-      color: 0x181c24,
-      roughness: 0.7,
-      metalness: 0.1
-    });
+    this.wallMeshes = [];
 
-    const floorMaterial = new THREE.MeshStandardMaterial({
-      color: 0x222733,
-      roughness: 0.3,
-      metalness: 0.2
-    });
+    // Helper to create a textured wall material with physical 10cm grid repeat
+    const createWallMaterial = (wMeters: number, hMeters: number): THREE.MeshStandardMaterial => {
+      const texture = this.textureLoader.load(this.currentTextureUrl);
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      texture.colorSpace = THREE.SRGBColorSpace;
+      // 10cm grid squares so lines match across intersecting walls
+      const repeatX = Math.max(1, Math.round(wMeters / 0.10));
+      const repeatY = Math.max(1, Math.round(hMeters / 0.10));
+      texture.repeat.set(repeatX, repeatY);
 
-    const backMaterial = new THREE.MeshStandardMaterial({
-      color: 0x12151c,
-      roughness: 0.8,
-      metalness: 0.05
-    });
+      return new THREE.MeshStandardMaterial({
+        map: texture,
+        roughness: 0.55,
+        metalness: 0.15
+      });
+    };
 
     // 1. Floor (at y = -H/2)
     const floorGeo = new THREE.PlaneGeometry(W, depth);
-    const floor = new THREE.Mesh(floorGeo, floorMaterial);
+    const floor = new THREE.Mesh(floorGeo, createWallMaterial(W, depth));
     floor.rotation.x = -Math.PI / 2;
     floor.position.set(0, -H / 2, -depth / 2);
     floor.receiveShadow = true;
     this.group.add(floor);
-
-    // Floor grid lines
-    const grid = new THREE.GridHelper(W, 10, 0x00ffff, 0x334455);
-    grid.position.set(0, -H / 2 + 0.001, -depth / 2);
-    this.group.add(grid);
+    this.wallMeshes.push(floor);
 
     // 2. Ceiling (at y = +H/2)
     const ceilingGeo = new THREE.PlaneGeometry(W, depth);
-    const ceiling = new THREE.Mesh(ceilingGeo, wallMaterial);
+    const ceiling = new THREE.Mesh(ceilingGeo, createWallMaterial(W, depth));
     ceiling.rotation.x = Math.PI / 2;
     ceiling.position.set(0, H / 2, -depth / 2);
     ceiling.receiveShadow = true;
     this.group.add(ceiling);
+    this.wallMeshes.push(ceiling);
 
     // 3. Left Wall (at x = -W/2)
     const leftWallGeo = new THREE.PlaneGeometry(depth, H);
-    const leftWall = new THREE.Mesh(leftWallGeo, wallMaterial);
+    const leftWall = new THREE.Mesh(leftWallGeo, createWallMaterial(depth, H));
     leftWall.rotation.y = Math.PI / 2;
     leftWall.position.set(-W / 2, 0, -depth / 2);
     leftWall.receiveShadow = true;
     this.group.add(leftWall);
+    this.wallMeshes.push(leftWall);
 
     // 4. Right Wall (at x = +W/2)
     const rightWallGeo = new THREE.PlaneGeometry(depth, H);
-    const rightWall = new THREE.Mesh(rightWallGeo, wallMaterial);
+    const rightWall = new THREE.Mesh(rightWallGeo, createWallMaterial(depth, H));
     rightWall.rotation.y = -Math.PI / 2;
     rightWall.position.set(W / 2, 0, -depth / 2);
     rightWall.receiveShadow = true;
     this.group.add(rightWall);
+    this.wallMeshes.push(rightWall);
 
     // 5. Back Wall (at z = -depth)
     const backWallGeo = new THREE.PlaneGeometry(W, H);
-    const backWall = new THREE.Mesh(backWallGeo, backMaterial);
+    const backWall = new THREE.Mesh(backWallGeo, createWallMaterial(W, H));
     backWall.position.set(0, 0, -depth);
     backWall.receiveShadow = true;
     this.group.add(backWall);
+    this.wallMeshes.push(backWall);
 
-    // Subtle portal frame at Z = 0 (around screen opening)
-    const frameGeo = new THREE.RingGeometry(W * 0.49, W * 0.505, 4);
-    const frameMat = new THREE.MeshBasicMaterial({ color: 0x00ffcc, wireframe: true });
-    const frame = new THREE.Mesh(frameGeo, frameMat);
-    frame.position.set(0, 0, -0.005);
-    frame.rotation.z = Math.PI / 4;
-    this.group.add(frame);
-
-    // Multi-depth objects:
-    // A. FOREGROUND: Floating metallic toruses near the window (z = -0.12m)
-    const torusGeo = new THREE.TorusGeometry(0.045, 0.008, 16, 48);
-    const torusMat = new THREE.MeshStandardMaterial({
-      color: 0x00ffaa,
-      roughness: 0.2,
-      metalness: 0.9,
-      emissive: 0x003322
-    });
-    const torusLeft = new THREE.Mesh(torusGeo, torusMat);
-    torusLeft.position.set(-W * 0.32, H * 0.2, -0.15);
-    torusLeft.castShadow = true;
-    this.group.add(torusLeft);
-
-    this.animatedMeshes.push({
-      mesh: torusLeft,
-      update: (t) => {
-        torusLeft.rotation.x = t * 0.8;
-        torusLeft.rotation.y = t * 0.6;
-      }
-    });
-
-    // B. MIDGROUND CENTERPIECE: Floating faceted Icosahedron / Crystal (z = -0.38m)
-    const crystalGeo = new THREE.IcosahedronGeometry(0.065, 0);
-    const crystalMat = new THREE.MeshStandardMaterial({
-      color: 0x00d4ff,
-      roughness: 0.1,
-      metalness: 0.8,
-      wireframe: false
-    });
-    const crystal = new THREE.Mesh(crystalGeo, crystalMat);
-    crystal.position.set(0, 0, -0.38);
-    crystal.castShadow = true;
-    crystal.receiveShadow = true;
-    this.group.add(crystal);
-
-    // Glowing core inside crystal
-    const coreGeo = new THREE.SphereGeometry(0.025, 16, 16);
-    const coreMat = new THREE.MeshBasicMaterial({ color: 0xff33aa });
-    const core = new THREE.Mesh(coreGeo, coreMat);
-    crystal.add(core);
-
-    this.animatedMeshes.push({
-      mesh: crystal,
-      update: (t) => {
-        crystal.rotation.x = t * 0.5;
-        crystal.rotation.y = t * 0.7;
-        crystal.position.y = Math.sin(t * 1.5) * 0.02;
-      }
-    });
-
-    // C. MIDGROUND PEDESTALS & GEOMETRY
-    // Left pillar with gold sphere (z = -0.30m)
-    const pillarGeo = new THREE.CylinderGeometry(0.035, 0.04, 0.12, 24);
-    const pillarMat = new THREE.MeshStandardMaterial({ color: 0x2a3040, roughness: 0.5 });
-    const pillarLeft = new THREE.Mesh(pillarGeo, pillarMat);
-    pillarLeft.position.set(-W * 0.25, -H / 2 + 0.06, -0.3);
-    pillarLeft.receiveShadow = true;
-    this.group.add(pillarLeft);
-
-    const sphereGeo = new THREE.SphereGeometry(0.035, 32, 32);
-    const sphereMat = new THREE.MeshStandardMaterial({
-      color: 0xffaa00,
-      roughness: 0.15,
-      metalness: 0.95
-    });
-    const sphere = new THREE.Mesh(sphereGeo, sphereMat);
-    sphere.position.set(-W * 0.25, -H / 2 + 0.155, -0.3);
-    sphere.castShadow = true;
-    this.group.add(sphere);
-
-    // Right pillar with metallic cube (z = -0.45m)
-    const pillarRight = new THREE.Mesh(pillarGeo, pillarMat);
-    pillarRight.position.set(W * 0.25, -H / 2 + 0.06, -0.45);
-    pillarRight.receiveShadow = true;
-    this.group.add(pillarRight);
-
-    const boxGeo = new THREE.BoxGeometry(0.06, 0.06, 0.06);
-    const boxMat = new THREE.MeshStandardMaterial({
-      color: 0xff3366,
-      roughness: 0.3,
-      metalness: 0.7
-    });
-    const box = new THREE.Mesh(boxGeo, boxMat);
-    box.position.set(W * 0.25, -H / 2 + 0.15, -0.45);
-    box.castShadow = true;
-    this.group.add(box);
-
-    this.animatedMeshes.push({
-      mesh: box,
-      update: (t) => {
-        box.rotation.y = t * 0.4;
-      }
-    });
-
-    // D. BACKGROUND: Depth rings and back sculptures (z = -0.65m to -0.75m)
-    const backPillarGeo = new THREE.CylinderGeometry(0.025, 0.025, H * 0.7, 16);
-    const backPillar1 = new THREE.Mesh(backPillarGeo, pillarMat);
-    backPillar1.position.set(-W * 0.35, 0, -0.7);
-    this.group.add(backPillar1);
-
-    const backPillar2 = new THREE.Mesh(backPillarGeo, pillarMat);
-    backPillar2.position.set(W * 0.35, 0, -0.7);
-    this.group.add(backPillar2);
-
-    // Glowing depth marker rings on back wall
-    const depthRingGeo = new THREE.RingGeometry(0.08, 0.085, 32);
-    const depthRingMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, side: THREE.DoubleSide });
-    const depthRing = new THREE.Mesh(depthRingGeo, depthRingMat);
-    depthRing.position.set(0, 0, -0.79);
-    this.group.add(depthRing);
-
-    // E. Floating dust particles highlighting continuous parallax depth
-    const particleCount = 150;
-    const particlePositions = new Float32Array(particleCount * 3);
-    for (let i = 0; i < particleCount; i++) {
-      particlePositions[i * 3 + 0] = (Math.random() - 0.5) * (W * 0.9);
-      particlePositions[i * 3 + 1] = (Math.random() - 0.5) * (H * 0.85);
-      particlePositions[i * 3 + 2] = -Math.random() * (depth * 0.95);
+    // Ensure modelGroup is added to scene
+    if (!this.group.children.includes(this.modelGroup)) {
+      this.group.add(this.modelGroup);
     }
-    const particleGeo = new THREE.BufferGeometry();
-    particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
-    const particleMat = new THREE.PointsMaterial({
-      color: 0x88ddff,
-      size: 0.005,
-      transparent: true,
-      opacity: 0.7
-    });
-    this.particles = new THREE.Points(particleGeo, particleMat);
-    this.group.add(this.particles);
+
+    // Load active model
+    this.setModel(this.currentModelUrl);
   }
 
   /**
@@ -316,7 +308,7 @@ export class DemoScene {
     // 1. Dark Room Interior Walls (Floor, Ceiling, Left, Right, Back)
     // ------------------------------------------------------------------
     const roomMat = new THREE.MeshStandardMaterial({
-      color: 0x141519, // Dark matte charcoal matching reference screenshot
+      color: 0x141519,
       roughness: 0.85,
       metalness: 0.05,
       polygonOffset: true,
@@ -359,49 +351,41 @@ export class DemoScene {
     this.group.add(backWall);
 
     // ------------------------------------------------------------------
-    // 2. Amber/Orange Perspective Grid (matching user reference image)
+    // 2. Amber/Orange Perspective Grid
     // ------------------------------------------------------------------
     const Nx = 10;
     const Ny = 6;
-    const Nz = 9; // ~5cm spacing along Z (45cm / 9 = 5cm)
+    const Nz = 9; // ~5cm spacing along Z
     const dx = W / Nx;
     const dy = H / Ny;
     const dz = maxDepth / Nz;
 
     const gridPoints: number[] = [];
 
-    // A. Longitudinal lines along Ceiling & Floor running from Z = 0 to Z = -maxDepth
+    // Longitudinal lines along Ceiling & Floor running from Z = 0 to Z = -maxDepth
     for (let i = 0; i <= Nx; i++) {
       const x = -W / 2 + i * dx;
-      // Ceiling line
       gridPoints.push(x, H / 2, 0, x, H / 2, -maxDepth);
-      // Floor line
       gridPoints.push(x, -H / 2, 0, x, -H / 2, -maxDepth);
     }
 
-    // B. Longitudinal lines along Left & Right walls running from Z = 0 to Z = -maxDepth
+    // Longitudinal lines along Left & Right walls running from Z = 0 to Z = -maxDepth
     for (let j = 0; j <= Ny; j++) {
       const y = -H / 2 + j * dy;
-      // Left wall line
       gridPoints.push(-W / 2, y, 0, -W / 2, y, -maxDepth);
-      // Right wall line
       gridPoints.push(W / 2, y, 0, W / 2, y, -maxDepth);
     }
 
-    // C. Transverse rectangular depth rings at every interval along Z
+    // Transverse rectangular depth rings at every interval along Z
     for (let k = 0; k <= Nz; k++) {
       const z = -k * dz;
-      // Bottom segment (Floor)
       gridPoints.push(-W / 2, -H / 2, z, W / 2, -H / 2, z);
-      // Right segment (Right wall)
       gridPoints.push(W / 2, -H / 2, z, W / 2, H / 2, z);
-      // Top segment (Ceiling)
       gridPoints.push(W / 2, H / 2, z, -W / 2, H / 2, z);
-      // Left segment (Left wall)
       gridPoints.push(-W / 2, H / 2, z, -W / 2, -H / 2, z);
     }
 
-    // D. Back wall inner grid lines
+    // Back wall inner grid lines
     for (let i = 1; i < Nx; i++) {
       const x = -W / 2 + i * dx;
       gridPoints.push(x, -H / 2, -maxDepth, x, H / 2, -maxDepth);
@@ -414,7 +398,7 @@ export class DemoScene {
     const gridGeo = new THREE.BufferGeometry();
     gridGeo.setAttribute('position', new THREE.Float32BufferAttribute(gridPoints, 3));
     const gridMat = new THREE.LineBasicMaterial({
-      color: 0xff9900, // Warm vibrant amber/orange matching the reference image
+      color: 0xff9900,
       transparent: true,
       opacity: 0.95
     });
@@ -433,42 +417,42 @@ export class DemoScene {
       {
         x: -W * 0.14,
         y:  H * 0.14,
-        z:  0.08, // +8 cm in front of screen (pops out towards viewer)
-        color: 0x00f0ff, // Electric Cyan
+        z:  0.08, // +8 cm in front of screen
+        color: 0x00f0ff,
         radius: 0.020
       },
       {
         x:  W * 0.15,
         y: -H * 0.10,
-        z:  0.03, // +3 cm just in front of screen
-        color: 0x00ff88, // Neon Green
+        z:  0.03, // +3 cm in front of screen
+        color: 0x00ff88,
         radius: 0.020
       },
       {
         x: -W * 0.24,
         y: -H * 0.18,
-        z: -0.14, // -14 cm recessed into the room
-        color: 0xffbe0b, // Amber Gold
+        z: -0.14, // -14 cm recessed
+        color: 0xffbe0b,
         radius: 0.020
       },
       {
         x:  W * 0.24,
         y:  H * 0.20,
-        z: -0.27, // -27 cm midground depth
-        color: 0xff00aa, // Vivid Magenta
+        z: -0.27, // -27 cm midground
+        color: 0xff00aa,
         radius: 0.020
       },
       {
         x: -W * 0.06,
         y: -H * 0.02,
-        z: -0.35, // -35 cm deep (moved forward 5 cm)
-        color: 0x9d4edd, // Deep Violet
+        z: -0.35, // -35 cm deep
+        color: 0x9d4edd,
         radius: 0.020
       }
     ];
 
     sphereConfigs.forEach((config) => {
-      // 1. Depth Sphere
+      // Depth Sphere
       const sGeo = new THREE.SphereGeometry(config.radius, 24, 24);
       const sMat = new THREE.MeshStandardMaterial({
         color: config.color,
@@ -480,8 +464,7 @@ export class DemoScene {
       sphere.castShadow = true;
       this.group.add(sphere);
 
-      // 2. Line drawn from center of sphere going straight back through Z axis to back of scene
-      // For spheres at Z > 0, this guideline pierces directly through the physical screen at Z = 0!
+      // Line straight back through Z axis to back of scene
       const linePoints = [
         new THREE.Vector3(config.x, config.y, config.z),
         new THREE.Vector3(config.x, config.y, -maxDepth)
@@ -496,8 +479,7 @@ export class DemoScene {
       const zGuideline = new THREE.Line(lineGeo, lineMat);
       this.group.add(zGuideline);
 
-
-      // 4. Target projection ring on back wall where guideline lands
+      // Target projection ring on back wall where guideline lands
       const ringGeo = new THREE.RingGeometry(0.005, 0.009, 24);
       const ringMat = new THREE.MeshBasicMaterial({
         color: config.color,
@@ -509,21 +491,18 @@ export class DemoScene {
       ring.position.set(config.x, config.y, -maxDepth + 0.001);
       this.group.add(ring);
 
-      // 5. Floating depth label hovering cleanly above sphere
-      const sign = config.z >= 0 ? '+' : '-';
-      const absCm = Math.round(Math.abs(config.z) * 100);
-      const absInches = (Math.abs(config.z) * 39.3701).toFixed(1);
-      const labelText = `Z: ${sign}${absCm} cm (${sign}${absInches} in)`;
+      // Floating depth label hovering above sphere
+      const cmSign = config.z > 0 ? '+' : '';
+      const cmVal = `${cmSign}${(config.z * 100).toFixed(0)} cm`;
+      const inVal = `${cmSign}${(config.z * 39.3701).toFixed(1)} in`;
+      const labelText = `Z: ${cmVal} (${inVal})`;
 
-      const label = this.createLabelSprite(labelText, config.color);
-      label.position.set(config.x, config.y + config.radius + 0.016, config.z);
-      this.group.add(label);
+      const labelSprite = this.createLabelSprite(labelText, config.color);
+      labelSprite.position.set(config.x, config.y + config.radius + 0.012, config.z);
+      this.group.add(labelSprite);
     });
   }
 
-  /**
-   * Creates a crisp billboard text sprite hovering in the air without surrounding boxes.
-   */
   private createLabelSprite(text: string, _colorHex: number): THREE.Sprite {
     const canvas = document.createElement('canvas');
     canvas.width = 512;
@@ -531,10 +510,7 @@ export class DemoScene {
     const ctx = canvas.getContext('2d');
     if (!ctx) return new THREE.Sprite();
 
-    // Clear canvas to ensure completely transparent background (no surrounding box)
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Render Text (crisp pure white characters hovering directly in the air)
     ctx.shadowBlur = 0;
     let fontSize = 44;
     ctx.font = `bold ${fontSize}px "SF Mono", "Consolas", "Courier New", monospace`;
@@ -545,8 +521,6 @@ export class DemoScene {
 
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-
-    // Thin dark outline for crisp contrast against any scene lighting/floor lines
     ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)';
     ctx.lineWidth = 6;
     ctx.lineJoin = 'round';
@@ -566,18 +540,25 @@ export class DemoScene {
       depthTest: true
     });
     const sprite = new THREE.Sprite(spriteMat);
-    // Scaled +50%: ~4.88cm wide by 1.22cm tall
     sprite.scale.set(0.04875, 0.0121875, 1.0);
     return sprite;
   }
 
-  public update(timeSeconds: number): void {
-    for (const item of this.animatedMeshes) {
-      item.update(timeSeconds);
-    }
-    if (this.particles) {
-      this.particles.rotation.z = timeSeconds * 0.02;
+  public update(timeSeconds: number, deltaTimeSeconds: number = 0.016): void {
+    if (this.currentSceneType === SceneType.Diorama) {
+      if (this.currentMixer) {
+        this.currentMixer.update(deltaTimeSeconds);
+      }
+      if (this.modelWrapper) {
+        this.modelWrapper.rotation.y = timeSeconds * 0.35;
+      }
+    } else {
+      for (const item of this.animatedMeshes) {
+        item.update(timeSeconds);
+      }
+      if (this.particles) {
+        this.particles.rotation.z = timeSeconds * 0.02;
+      }
     }
   }
 }
-

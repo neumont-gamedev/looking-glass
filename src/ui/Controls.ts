@@ -26,6 +26,8 @@ export interface ControlsCallbacks {
   onToggleDebugHud?: (visible: boolean) => void;
   getCurrentRawPose?: () => ViewerPose | null;
   getBiometricDistance?: () => BiometricDistanceResult | null;
+  onModelChange?: (modelUrl: string) => void;
+  onTextureChange?: (textureUrl: string) => void;
 }
 
 export class Controls {
@@ -149,6 +151,20 @@ export class Controls {
       </div>
       <div class="topbar-actions">
         <button class="btn btn-hud btn-icon" id="btn-feed-fish" title="Feed Fish (F)">🦐</button>
+        <div class="model-viewer-controls" id="model-viewer-controls" style="display: none;">
+          <select id="select-model" class="btn btn-hud hud-select" title="Select 3D Model">
+            <option value="models/fish01.glb">🐠 Fish 1</option>
+            <option value="models/fish02.glb">🐡 Fish 2</option>
+            <option value="models/log.glb">🪵 Log</option>
+            <option value="models/plant01.glb">🌿 Plant</option>
+          </select>
+          <select id="select-texture" class="btn btn-hud hud-select" title="Select Wall Texture">
+            <option value="textures/orange_grid.png">🟧 Orange Grid</option>
+            <option value="textures/cyan_grid.png">🟦 Cyan Grid</option>
+            <option value="textures/dark_grid.png">⬛ Dark Grid</option>
+            <option value="textures/checkerboard.png">🏁 Checkerboard</option>
+          </select>
+        </div>
         <button class="btn btn-hud btn-icon" id="btn-fullscreen" title="Toggle Fullscreen">⛶</button>
         <button class="btn btn-hud btn-icon" id="btn-scene-menu" title="Scenes (Aquarium, Model Viewer, Calibration)">🎬</button>
         <button class="btn btn-hud btn-icon" id="btn-toggle-settings" title="Settings & Calibration (S)">⚙</button>
@@ -170,6 +186,20 @@ export class Controls {
 
     this.topBar.querySelector('#btn-feed-fish')?.addEventListener('click', () => {
       if (this.callbacks.onFeedFish) this.callbacks.onFeedFish();
+    });
+
+    this.topBar.querySelector('#select-model')?.addEventListener('change', (e) => {
+      const url = (e.target as HTMLSelectElement).value;
+      if (url && this.callbacks.onModelChange) {
+        this.callbacks.onModelChange(url);
+      }
+    });
+
+    this.topBar.querySelector('#select-texture')?.addEventListener('change', (e) => {
+      const url = (e.target as HTMLSelectElement).value;
+      if (url && this.callbacks.onTextureChange) {
+        this.callbacks.onTextureChange(url);
+      }
     });
 
     this.topBar.querySelector('#btn-fullscreen')?.addEventListener('click', () => {
@@ -339,6 +369,10 @@ export class Controls {
     this.currentSceneType = sceneType;
     if (this.feedFishBtn) {
       this.feedFishBtn.style.display = sceneType === SceneType.Aquarium ? '' : 'none';
+    }
+    const modelControls = this.topBar.querySelector('#model-viewer-controls') as HTMLElement;
+    if (modelControls) {
+      modelControls.style.display = sceneType === SceneType.Diorama ? 'flex' : 'none';
     }
     const select = this.scenePopover?.querySelector('#scene-dropdown-select') as HTMLSelectElement;
     if (select && select.value !== sceneType) {

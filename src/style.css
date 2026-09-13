@@ -251,6 +251,40 @@ html, body {
   box-shadow: 0 0 12px rgba(0, 198, 255, 0.4);
 }
 
+.model-viewer-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hud-select {
+  height: 38px;
+  padding: 0 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  border-radius: 8px;
+  background: var(--bg-surface);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--bg-surface-border);
+  color: var(--text-primary);
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s ease;
+  appearance: auto;
+}
+
+.hud-select:hover {
+  border-color: var(--accent-cyan);
+  background: rgba(30, 41, 59, 0.95);
+  box-shadow: 0 0 10px var(--accent-glow);
+}
+
+.hud-select option {
+  background: #0f172a;
+  color: #f8fafc;
+  padding: 6px 10px;
+}
+
 /* ==========================================================================
    HUD Status Badge (Bottom-Left)
    ========================================================================== */

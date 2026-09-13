@@ -124,6 +124,12 @@ export class LookingGlassApp {
           }
           const screen = this.calibrationManager.getScreenGeometry();
           return this.poseEstimator.estimateBiometricDistance(this.currentResult.landmarks, screen);
+        },
+        onModelChange: (modelUrl: string) => {
+          this.sceneManager.demoScene.setModel(modelUrl);
+        },
+        onTextureChange: (textureUrl: string) => {
+          this.sceneManager.demoScene.setWallTexture(textureUrl);
         }
       }
     );

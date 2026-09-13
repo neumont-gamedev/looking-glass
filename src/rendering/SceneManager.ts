@@ -162,7 +162,7 @@ export class SceneManager {
     if (this.currentSceneType === SceneType.Aquarium) {
       this.aquariumScene.update(deltaTimeSeconds, timeSeconds);
     } else {
-      this.demoScene.update(timeSeconds);
+      this.demoScene.update(timeSeconds, deltaTimeSeconds);
     }
   }
 }
