@@ -24,6 +24,11 @@ export class SceneManager {
   private accentLight1: THREE.PointLight;
   private accentLight2: THREE.PointLight;
 
+  private modelViewerAmbientColor: string = '#333333';
+  private modelViewerDirColor: string = '#ffffff';
+  private modelViewerLightRotX: number = 0;
+  private modelViewerLightRotZ: number = 0;
+
   constructor(screen: ScreenGeometry) {
     this.scene = new THREE.Scene();
 
@@ -136,26 +141,61 @@ export class SceneManager {
       this.demoScene.setSceneType(type, screen);
       this.scene.add(this.demoScene.group);
     } else {
-      // Diorama
+      // Diorama (Model Viewer): only ambient and directional light
       this.scene.background = new THREE.Color(0x0a0c10);
       this.scene.fog = null;
 
-      this.ambientLight.color.setHex(0xffffff);
-      this.ambientLight.intensity = 0.4;
+      // Dark gray ambient light
+      this.ambientLight.color.set(this.modelViewerAmbientColor);
+      this.ambientLight.intensity = 1.0;
 
-      this.dirLight.color.setHex(0xfff5e6);
-      this.dirLight.intensity = 1.4;
-      this.dirLight.position.set(0.1, 0.7, 0.2);
-      this.dirLight.target.position.set(0, 0, -0.4);
+      // Bright white directional light pointing straight down with X/Z rotation
+      this.dirLight.color.set(this.modelViewerDirColor);
+      this.dirLight.intensity = 2.0;
+      this.updateModelViewerDirLight();
 
-      this.accentLight1.color.setHex(0x00d4ff);
-      this.accentLight1.intensity = 1.2;
-      this.accentLight2.color.setHex(0xff0077);
-      this.accentLight2.intensity = 0.9;
+      // Disable accent lights
+      this.accentLight1.intensity = 0;
+      this.accentLight2.intensity = 0;
 
       this.demoScene.setSceneType(type, screen);
       this.scene.add(this.demoScene.group);
     }
+  }
+
+  public setAmbientLightColor(colorHex: string): void {
+    this.modelViewerAmbientColor = colorHex;
+    if (this.currentSceneType === SceneType.Diorama) {
+      this.ambientLight.color.set(colorHex);
+    }
+  }
+
+  public setDirLightColor(colorHex: string): void {
+    this.modelViewerDirColor = colorHex;
+    if (this.currentSceneType === SceneType.Diorama) {
+      this.dirLight.color.set(colorHex);
+    }
+  }
+
+  public setDirLightRotation(rotXDeg: number, rotZDeg: number): void {
+    this.modelViewerLightRotX = rotXDeg;
+    this.modelViewerLightRotZ = rotZDeg;
+    if (this.currentSceneType === SceneType.Diorama) {
+      this.updateModelViewerDirLight();
+    }
+  }
+
+  private updateModelViewerDirLight(): void {
+    const lightDistance = 0.95;
+    const targetPos = new THREE.Vector3(0, 0, -0.25);
+    const rotXRad = (this.modelViewerLightRotX * Math.PI) / 180;
+    const rotZRad = (this.modelViewerLightRotZ * Math.PI) / 180;
+
+    // Point straight down from above (0, lightDistance, 0), rotated around X and Z axes
+    const offset = new THREE.Vector3(0, lightDistance, 0).applyEuler(new THREE.Euler(rotXRad, 0, rotZRad, 'ZXY'));
+    this.dirLight.position.copy(targetPos).add(offset);
+    this.dirLight.target.position.copy(targetPos);
+    this.dirLight.target.updateMatrixWorld();
   }
 
   public update(deltaTimeSeconds: number, timeSeconds: number): void {

@@ -28,6 +28,9 @@ export interface ControlsCallbacks {
   getBiometricDistance?: () => BiometricDistanceResult | null;
   onModelChange?: (modelUrl: string) => void;
   onTextureChange?: (textureUrl: string) => void;
+  onAmbientLightColorChange?: (colorHex: string) => void;
+  onDirLightColorChange?: (colorHex: string) => void;
+  onDirLightRotationChange?: (rotXDeg: number, rotZDeg: number) => void;
 }
 
 export class Controls {
@@ -151,20 +154,6 @@ export class Controls {
       </div>
       <div class="topbar-actions">
         <button class="btn btn-hud btn-icon" id="btn-feed-fish" title="Feed Fish (F)">🦐</button>
-        <div class="model-viewer-controls" id="model-viewer-controls" style="display: none;">
-          <select id="select-model" class="btn btn-hud hud-select" title="Select 3D Model">
-            <option value="models/fish01.glb">🐠 Fish 1</option>
-            <option value="models/fish02.glb">🐡 Fish 2</option>
-            <option value="models/log.glb">🪵 Log</option>
-            <option value="models/plant01.glb">🌿 Plant</option>
-          </select>
-          <select id="select-texture" class="btn btn-hud hud-select" title="Select Wall Texture">
-            <option value="textures/orange_grid.png">🟧 Orange Grid</option>
-            <option value="textures/cyan_grid.png">🟦 Cyan Grid</option>
-            <option value="textures/dark_grid.png">⬛ Dark Grid</option>
-            <option value="textures/checkerboard.png">🏁 Checkerboard</option>
-          </select>
-        </div>
         <button class="btn btn-hud btn-icon" id="btn-fullscreen" title="Toggle Fullscreen">⛶</button>
         <button class="btn btn-hud btn-icon" id="btn-scene-menu" title="Scenes (Aquarium, Model Viewer, Calibration)">🎬</button>
         <button class="btn btn-hud btn-icon" id="btn-toggle-settings" title="Settings & Calibration (S)">⚙</button>
@@ -186,20 +175,6 @@ export class Controls {
 
     this.topBar.querySelector('#btn-feed-fish')?.addEventListener('click', () => {
       if (this.callbacks.onFeedFish) this.callbacks.onFeedFish();
-    });
-
-    this.topBar.querySelector('#select-model')?.addEventListener('change', (e) => {
-      const url = (e.target as HTMLSelectElement).value;
-      if (url && this.callbacks.onModelChange) {
-        this.callbacks.onModelChange(url);
-      }
-    });
-
-    this.topBar.querySelector('#select-texture')?.addEventListener('change', (e) => {
-      const url = (e.target as HTMLSelectElement).value;
-      if (url && this.callbacks.onTextureChange) {
-        this.callbacks.onTextureChange(url);
-      }
     });
 
     this.topBar.querySelector('#btn-fullscreen')?.addEventListener('click', () => {
@@ -258,6 +233,64 @@ export class Controls {
             <option value="${SceneType.Debug}" ${isDebug}>📐 Calibration</option>
           </select>
         </div>
+
+        <div id="scene-model-viewer-options" style="display: ${currentScene === SceneType.Diorama ? 'block' : 'none'};">
+          <div class="settings-subsection-title">📦 Model & Texture</div>
+
+          <div class="setting-group">
+            <label for="scene-select-model">Select 3D Model:</label>
+            <select id="scene-select-model">
+              <option value="models/fish01.glb">🐠 Fish 1</option>
+              <option value="models/fish02.glb">🐡 Fish 2</option>
+              <option value="models/log.glb">🪵 Log</option>
+              <option value="models/plant01.glb">🌿 Plant</option>
+            </select>
+          </div>
+
+          <div class="setting-group">
+            <label for="scene-select-texture">Wall Texture (10cm Grid):</label>
+            <select id="scene-select-texture">
+              <option value="textures/orange_grid.png">🟧 Orange Grid</option>
+              <option value="textures/cyan_grid.png">🟦 Cyan Grid</option>
+              <option value="textures/dark_grid.png">⬛ Dark Grid</option>
+              <option value="textures/checkerboard.png">🏁 Checkerboard</option>
+            </select>
+          </div>
+
+          <div class="settings-subsection-title">💡 Model Viewer Lighting</div>
+
+          <div class="setting-group setting-color-group">
+            <label for="input-ambient-color">Ambient Light Color</label>
+            <div class="color-picker-wrapper">
+              <input type="color" id="input-ambient-color" value="#333333">
+              <span id="ambient-color-val" class="color-hex-val">#333333</span>
+            </div>
+          </div>
+
+          <div class="setting-group setting-color-group">
+            <label for="input-dir-color">Directional Light Color</label>
+            <div class="color-picker-wrapper">
+              <input type="color" id="input-dir-color" value="#ffffff">
+              <span id="dir-color-val" class="color-hex-val">#ffffff</span>
+            </div>
+          </div>
+
+          <div class="setting-group">
+            <div class="setting-header">
+              <label for="slider-light-rot-x">Directional Tilt X:</label>
+              <span id="val-light-rot-x" class="slider-value">0°</span>
+            </div>
+            <input type="range" id="slider-light-rot-x" min="-75" max="75" step="1" value="0">
+          </div>
+
+          <div class="setting-group">
+            <div class="setting-header">
+              <label for="slider-light-rot-z">Directional Tilt Z:</label>
+              <span id="val-light-rot-z" class="slider-value">0°</span>
+            </div>
+            <input type="range" id="slider-light-rot-z" min="-75" max="75" step="1" value="0">
+          </div>
+        </div>
       </div>
     `;
 
@@ -274,6 +307,60 @@ export class Controls {
         this.callbacks.onSceneChange(scene);
       }
     });
+
+    const modelSelect = this.scenePopover.querySelector('#scene-select-model') as HTMLSelectElement;
+    modelSelect?.addEventListener('change', (e) => {
+      const url = (e.target as HTMLSelectElement).value;
+      if (url && this.callbacks.onModelChange) {
+        this.callbacks.onModelChange(url);
+      }
+    });
+
+    const textureSelect = this.scenePopover.querySelector('#scene-select-texture') as HTMLSelectElement;
+    textureSelect?.addEventListener('change', (e) => {
+      const url = (e.target as HTMLSelectElement).value;
+      if (url && this.callbacks.onTextureChange) {
+        this.callbacks.onTextureChange(url);
+      }
+    });
+
+    const ambientInput = this.scenePopover.querySelector('#input-ambient-color') as HTMLInputElement;
+    const ambientVal = this.scenePopover.querySelector('#ambient-color-val') as HTMLElement;
+    ambientInput?.addEventListener('input', (e) => {
+      const color = (e.target as HTMLInputElement).value;
+      if (ambientVal) ambientVal.textContent = color;
+      if (this.callbacks.onAmbientLightColorChange) {
+        this.callbacks.onAmbientLightColorChange(color);
+      }
+    });
+
+    const dirInput = this.scenePopover.querySelector('#input-dir-color') as HTMLInputElement;
+    const dirVal = this.scenePopover.querySelector('#dir-color-val') as HTMLElement;
+    dirInput?.addEventListener('input', (e) => {
+      const color = (e.target as HTMLInputElement).value;
+      if (dirVal) dirVal.textContent = color;
+      if (this.callbacks.onDirLightColorChange) {
+        this.callbacks.onDirLightColorChange(color);
+      }
+    });
+
+    const rotXSlider = this.scenePopover.querySelector('#slider-light-rot-x') as HTMLInputElement;
+    const rotZSlider = this.scenePopover.querySelector('#slider-light-rot-z') as HTMLInputElement;
+    const rotXVal = this.scenePopover.querySelector('#val-light-rot-x') as HTMLElement;
+    const rotZVal = this.scenePopover.querySelector('#val-light-rot-z') as HTMLElement;
+
+    const onRotChange = () => {
+      const rotX = parseFloat(rotXSlider?.value || '0');
+      const rotZ = parseFloat(rotZSlider?.value || '0');
+      if (rotXVal) rotXVal.textContent = `${rotX > 0 ? '+' : ''}${rotX}°`;
+      if (rotZVal) rotZVal.textContent = `${rotZ > 0 ? '+' : ''}${rotZ}°`;
+      if (this.callbacks.onDirLightRotationChange) {
+        this.callbacks.onDirLightRotationChange(rotX, rotZ);
+      }
+    };
+
+    rotXSlider?.addEventListener('input', onRotChange);
+    rotZSlider?.addEventListener('input', onRotChange);
   }
 
   public isScenePopoverOpen(): boolean {
@@ -370,9 +457,9 @@ export class Controls {
     if (this.feedFishBtn) {
       this.feedFishBtn.style.display = sceneType === SceneType.Aquarium ? '' : 'none';
     }
-    const modelControls = this.topBar.querySelector('#model-viewer-controls') as HTMLElement;
-    if (modelControls) {
-      modelControls.style.display = sceneType === SceneType.Diorama ? 'flex' : 'none';
+    const modelOptions = this.scenePopover?.querySelector('#scene-model-viewer-options') as HTMLElement;
+    if (modelOptions) {
+      modelOptions.style.display = sceneType === SceneType.Diorama ? 'block' : 'none';
     }
     const select = this.scenePopover?.querySelector('#scene-dropdown-select') as HTMLSelectElement;
     if (select && select.value !== sceneType) {

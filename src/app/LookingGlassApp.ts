@@ -130,6 +130,15 @@ export class LookingGlassApp {
         },
         onTextureChange: (textureUrl: string) => {
           this.sceneManager.demoScene.setWallTexture(textureUrl);
+        },
+        onAmbientLightColorChange: (colorHex: string) => {
+          this.sceneManager.setAmbientLightColor(colorHex);
+        },
+        onDirLightColorChange: (colorHex: string) => {
+          this.sceneManager.setDirLightColor(colorHex);
+        },
+        onDirLightRotationChange: (rotXDeg: number, rotZDeg: number) => {
+          this.sceneManager.setDirLightRotation(rotXDeg, rotZDeg);
         }
       }
     );

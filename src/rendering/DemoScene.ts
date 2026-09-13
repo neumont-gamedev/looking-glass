@@ -196,12 +196,12 @@ export class DemoScene {
     this.wallMeshes.forEach((mesh) => {
       const mat = mesh.material as THREE.MeshStandardMaterial;
       if (mat) {
-        const oldRepeat = mat.map ? mat.map.repeat.clone() : new THREE.Vector2(2, 2);
+        const { wMeters = 0.5, hMeters = 0.5 } = mesh.userData || {};
         const newTex = this.textureLoader.load(textureUrl);
         newTex.wrapS = THREE.RepeatWrapping;
         newTex.wrapT = THREE.RepeatWrapping;
         newTex.colorSpace = THREE.SRGBColorSpace;
-        newTex.repeat.copy(oldRepeat);
+        newTex.repeat.set(wMeters / 0.10, hMeters / 0.10);
         mat.map = newTex;
         mat.needsUpdate = true;
       }
@@ -211,6 +211,7 @@ export class DemoScene {
   /**
    * Builds the clean 5-walled Model Viewer room extending behind the monitor.
    * Walls are mapped with the selected texture (default: orange_grid.png).
+   * UVs repeat every 10cm (0.10m) in physical world space.
    */
   private buildDiorama(screen: ScreenGeometry): void {
     const W = screen.width;
@@ -225,10 +226,8 @@ export class DemoScene {
       texture.wrapS = THREE.RepeatWrapping;
       texture.wrapT = THREE.RepeatWrapping;
       texture.colorSpace = THREE.SRGBColorSpace;
-      // 10cm grid squares so lines match across intersecting walls
-      const repeatX = Math.max(1, Math.round(wMeters / 0.10));
-      const repeatY = Math.max(1, Math.round(hMeters / 0.10));
-      texture.repeat.set(repeatX, repeatY);
+      // Exact physical 10cm UV repeat (1 texture square per 0.10m in world space)
+      texture.repeat.set(wMeters / 0.10, hMeters / 0.10);
 
       return new THREE.MeshStandardMaterial({
         map: texture,
@@ -240,6 +239,7 @@ export class DemoScene {
     // 1. Floor (at y = -H/2)
     const floorGeo = new THREE.PlaneGeometry(W, depth);
     const floor = new THREE.Mesh(floorGeo, createWallMaterial(W, depth));
+    floor.userData = { wMeters: W, hMeters: depth };
     floor.rotation.x = -Math.PI / 2;
     floor.position.set(0, -H / 2, -depth / 2);
     floor.receiveShadow = true;
@@ -249,6 +249,7 @@ export class DemoScene {
     // 2. Ceiling (at y = +H/2)
     const ceilingGeo = new THREE.PlaneGeometry(W, depth);
     const ceiling = new THREE.Mesh(ceilingGeo, createWallMaterial(W, depth));
+    ceiling.userData = { wMeters: W, hMeters: depth };
     ceiling.rotation.x = Math.PI / 2;
     ceiling.position.set(0, H / 2, -depth / 2);
     ceiling.receiveShadow = true;
@@ -258,6 +259,7 @@ export class DemoScene {
     // 3. Left Wall (at x = -W/2)
     const leftWallGeo = new THREE.PlaneGeometry(depth, H);
     const leftWall = new THREE.Mesh(leftWallGeo, createWallMaterial(depth, H));
+    leftWall.userData = { wMeters: depth, hMeters: H };
     leftWall.rotation.y = Math.PI / 2;
     leftWall.position.set(-W / 2, 0, -depth / 2);
     leftWall.receiveShadow = true;
@@ -267,6 +269,7 @@ export class DemoScene {
     // 4. Right Wall (at x = +W/2)
     const rightWallGeo = new THREE.PlaneGeometry(depth, H);
     const rightWall = new THREE.Mesh(rightWallGeo, createWallMaterial(depth, H));
+    rightWall.userData = { wMeters: depth, hMeters: H };
     rightWall.rotation.y = -Math.PI / 2;
     rightWall.position.set(W / 2, 0, -depth / 2);
     rightWall.receiveShadow = true;
@@ -276,6 +279,7 @@ export class DemoScene {
     // 5. Back Wall (at z = -depth)
     const backWallGeo = new THREE.PlaneGeometry(W, H);
     const backWall = new THREE.Mesh(backWallGeo, createWallMaterial(W, H));
+    backWall.userData = { wMeters: W, hMeters: H };
     backWall.position.set(0, 0, -depth);
     backWall.receiveShadow = true;
     this.group.add(backWall);

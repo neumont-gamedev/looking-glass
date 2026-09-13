@@ -251,40 +251,6 @@ html, body {
   box-shadow: 0 0 12px rgba(0, 198, 255, 0.4);
 }
 
-.model-viewer-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.hud-select {
-  height: 38px;
-  padding: 0 12px;
-  font-size: 0.8rem;
-  font-weight: 500;
-  border-radius: 8px;
-  background: var(--bg-surface);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--bg-surface-border);
-  color: var(--text-primary);
-  cursor: pointer;
-  outline: none;
-  transition: all 0.2s ease;
-  appearance: auto;
-}
-
-.hud-select:hover {
-  border-color: var(--accent-cyan);
-  background: rgba(30, 41, 59, 0.95);
-  box-shadow: 0 0 10px var(--accent-glow);
-}
-
-.hud-select option {
-  background: #0f172a;
-  color: #f8fafc;
-  padding: 6px 10px;
-}
-
 /* ==========================================================================
    HUD Status Badge (Bottom-Left)
    ========================================================================== */
@@ -438,6 +404,67 @@ html, body {
   margin-bottom: 10px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+.settings-subsection-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--accent-cyan);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 18px 0 12px 0;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.setting-color-group {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.setting-color-group label {
+  margin-bottom: 0;
+}
+
+.color-picker-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.color-picker-wrapper input[type="color"] {
+  -webkit-appearance: none;
+  border: 1px solid var(--bg-surface-border);
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  cursor: pointer;
+  background: transparent;
+  padding: 0;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.color-picker-wrapper input[type="color"]:hover {
+  border-color: var(--accent-cyan);
+}
+
+.color-picker-wrapper input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+
+.color-picker-wrapper input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: 4px;
+}
+
+.color-hex-val {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  min-width: 58px;
 }
 
 select {
