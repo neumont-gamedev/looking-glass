@@ -84,6 +84,9 @@ export interface ControlsCallbacks {
   onDirLightRotationChange?: (rotXDeg: number, rotZDeg: number) => void;
   onModelZChange?: (zMeters: number) => void;
   onModelScaleChange?: (scaleMultiplier: number) => void;
+  onModelRotationChange?: (rotDeg: number) => void;
+  onModelAutoRotateChange?: (autoRotate: boolean) => void;
+  getModelCurrentRotationDeg?: () => number;
 }
 
 export class Controls {
@@ -321,6 +324,21 @@ export class Controls {
           </div>
 
           <div class="setting-group">
+            <div class="setting-header">
+              <label for="slider-model-rot">Model Rotation (Y):</label>
+              <span id="val-model-rot" class="slider-value">0°</span>
+            </div>
+            <input type="range" id="slider-model-rot" min="0" max="360" step="1" value="0">
+          </div>
+
+          <div class="setting-group">
+            <label class="checkbox-row" for="check-model-auto-rotate">
+              <input type="checkbox" id="check-model-auto-rotate" checked>
+              <span>Auto-Rotate Model</span>
+            </label>
+          </div>
+
+          <div class="setting-group">
             <label for="scene-select-texture">Wall Texture (10cm Grid):</label>
             <select id="scene-select-texture">
               ${textureOptionsHtml}
@@ -408,6 +426,38 @@ export class Controls {
       }
       if (this.callbacks.onModelScaleChange) {
         this.callbacks.onModelScaleChange(mult);
+      }
+    });
+
+    const modelRotSlider = this.scenePopover.querySelector('#slider-model-rot') as HTMLInputElement;
+    const modelRotVal = this.scenePopover.querySelector('#val-model-rot') as HTMLElement;
+    const modelAutoRotateCheck = this.scenePopover.querySelector('#check-model-auto-rotate') as HTMLInputElement;
+
+    modelRotSlider?.addEventListener('input', (e) => {
+      const deg = parseFloat((e.target as HTMLInputElement).value || '0');
+      if (modelRotVal) {
+        modelRotVal.textContent = `${deg}°`;
+      }
+      if (modelAutoRotateCheck && modelAutoRotateCheck.checked) {
+        modelAutoRotateCheck.checked = false;
+        if (this.callbacks.onModelAutoRotateChange) {
+          this.callbacks.onModelAutoRotateChange(false);
+        }
+      }
+      if (this.callbacks.onModelRotationChange) {
+        this.callbacks.onModelRotationChange(deg);
+      }
+    });
+
+    modelAutoRotateCheck?.addEventListener('change', (e) => {
+      const isChecked = (e.target as HTMLInputElement).checked;
+      if (!isChecked && this.callbacks.getModelCurrentRotationDeg && modelRotSlider && modelRotVal) {
+        const currentDeg = Math.round(this.callbacks.getModelCurrentRotationDeg());
+        modelRotSlider.value = currentDeg.toString();
+        modelRotVal.textContent = `${currentDeg}°`;
+      }
+      if (this.callbacks.onModelAutoRotateChange) {
+        this.callbacks.onModelAutoRotateChange(isChecked);
       }
     });
 

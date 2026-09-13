@@ -145,6 +145,16 @@ export class LookingGlassApp {
         },
         onModelScaleChange: (scaleMultiplier: number) => {
           this.sceneManager.demoScene.setModelScaleMultiplier(scaleMultiplier);
+        },
+        onModelRotationChange: (rotDeg: number) => {
+          this.sceneManager.demoScene.setModelRotationY((rotDeg * Math.PI) / 180);
+        },
+        onModelAutoRotateChange: (autoRotate: boolean) => {
+          this.sceneManager.demoScene.setModelAutoRotate(autoRotate);
+        },
+        getModelCurrentRotationDeg: () => {
+          const rotRad = this.sceneManager.demoScene.getModelRotationY();
+          return ((rotRad * 180) / Math.PI) % 360;
         }
       }
     );

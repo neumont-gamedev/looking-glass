@@ -38,6 +38,8 @@ export class DemoScene {
   private currentScreen: ScreenGeometry | null = null;
   private modelZ: number = -0.25;
   private modelScaleMultiplier: number = 1.0;
+  private modelRotationY: number = 0;
+  private modelAutoRotate: boolean = true;
 
   constructor(screen: ScreenGeometry) {
     this.currentScreen = screen;
@@ -175,6 +177,7 @@ export class DemoScene {
       this.modelWrapper.add(scene);
       this.modelWrapper.position.set(0, 0, this.modelZ);
       this.modelWrapper.scale.setScalar(this.modelScaleMultiplier);
+      this.modelWrapper.rotation.y = this.modelRotationY;
       this.modelGroup.add(this.modelWrapper);
 
       // Bind skeletal animation if present
@@ -206,6 +209,37 @@ export class DemoScene {
     if (this.modelWrapper) {
       this.modelWrapper.scale.setScalar(multiplier);
     }
+  }
+
+  /**
+   * Adjusts the manual Y rotation (in radians) of the 3D model.
+   */
+  public setModelRotationY(rotRad: number): void {
+    this.modelRotationY = rotRad;
+    if (this.modelWrapper) {
+      this.modelWrapper.rotation.y = rotRad;
+    }
+  }
+
+  /**
+   * Gets the current Y rotation (in radians) of the 3D model.
+   */
+  public getModelRotationY(): number {
+    return this.modelRotationY;
+  }
+
+  /**
+   * Toggles auto-rotation for the 3D model.
+   */
+  public setModelAutoRotate(autoRotate: boolean): void {
+    this.modelAutoRotate = autoRotate;
+  }
+
+  /**
+   * Gets whether auto-rotation is enabled for the 3D model.
+   */
+  public getModelAutoRotate(): boolean {
+    return this.modelAutoRotate;
   }
 
   /**
@@ -576,7 +610,13 @@ export class DemoScene {
         this.currentMixer.update(deltaTimeSeconds);
       }
       if (this.modelWrapper) {
-        this.modelWrapper.rotation.y = timeSeconds * 0.35;
+        if (this.modelAutoRotate) {
+          const dt = Math.min(deltaTimeSeconds, 0.1);
+          this.modelRotationY = (this.modelRotationY + dt * 0.35) % (Math.PI * 2);
+          this.modelWrapper.rotation.y = this.modelRotationY;
+        } else {
+          this.modelWrapper.rotation.y = this.modelRotationY;
+        }
       }
     } else {
       for (const item of this.animatedMeshes) {
