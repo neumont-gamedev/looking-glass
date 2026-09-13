@@ -242,6 +242,11 @@ export class DemoScene {
     return this.modelAutoRotate;
   }
 
+  private getCacheBustedUrl(url: string): string {
+    const sep = url.includes('?') ? '&' : '?';
+    return `${url}${sep}t=${Date.now()}`;
+  }
+
   /**
    * Sets the active wall texture on the 5 walls in the Model Viewer room.
    */
@@ -253,7 +258,7 @@ export class DemoScene {
       const mat = mesh.material as THREE.MeshStandardMaterial;
       if (mat) {
         const { wMeters = 0.5, hMeters = 0.5 } = mesh.userData || {};
-        const newTex = this.textureLoader.load(textureUrl);
+        const newTex = this.textureLoader.load(this.getCacheBustedUrl(textureUrl));
         newTex.wrapS = THREE.RepeatWrapping;
         newTex.wrapT = THREE.RepeatWrapping;
         newTex.colorSpace = THREE.SRGBColorSpace;
@@ -278,7 +283,7 @@ export class DemoScene {
 
     // Helper to create a textured wall material with physical 10cm grid repeat
     const createWallMaterial = (wMeters: number, hMeters: number): THREE.MeshStandardMaterial => {
-      const texture = this.textureLoader.load(this.currentTextureUrl);
+      const texture = this.textureLoader.load(this.getCacheBustedUrl(this.currentTextureUrl));
       texture.wrapS = THREE.RepeatWrapping;
       texture.wrapT = THREE.RepeatWrapping;
       texture.colorSpace = THREE.SRGBColorSpace;
