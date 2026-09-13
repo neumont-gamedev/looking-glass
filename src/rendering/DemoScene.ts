@@ -357,7 +357,7 @@ export class DemoScene {
   private buildDebug(screen: ScreenGeometry): void {
     const W = screen.width;
     const H = screen.height;
-    const maxDepth = 0.45; // 45 cm deep behind the monitor
+    const maxDepth = 0.50; // 50 cm deep behind the monitor (matching Model Viewer)
 
     // Coordinate axes at origin (0, 0, 0) - half length: 0.0375m (3.75cm)
     this.axes = new THREE.AxesHelper(0.0375);
@@ -415,7 +415,7 @@ export class DemoScene {
     // ------------------------------------------------------------------
     const Nx = 10;
     const Ny = 6;
-    const Nz = 9; // ~5cm spacing along Z
+    const Nz = 10; // 5cm spacing along Z (0.50m / 10 = 0.05m = 5cm)
     const dx = W / Nx;
     const dy = H / Ny;
     const dz = maxDepth / Nz;
