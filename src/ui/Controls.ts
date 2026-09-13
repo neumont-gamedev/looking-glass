@@ -11,7 +11,7 @@ import { PerspectiveController, ProjectionMode } from '../rendering/PerspectiveC
 import { TrackingDebugView } from '../tracking/TrackingDebugView';
 import { SceneType } from '../rendering/DemoScene';
 import { CalibrationManager } from '../calibration/CalibrationManager';
-import { SettingsManager, InputMode, AppSettings } from '../settings/SettingsManager';
+import { SettingsManager, InputMode, AppSettings, computeSmoothingParameters, getSmoothnessLabel } from '../settings/SettingsManager';
 
 export { InputMode } from '../settings/SettingsManager';
 
@@ -356,39 +356,20 @@ export class Controls {
           </select>
         </div>
 
-        <!-- Predictive Positioning & Kinematic Smoothing -->
+        <!-- Tracking Smoothing & Responsiveness -->
         <div class="setting-group">
-          <h4>Motion Smoothing & Predictive Tracking</h4>
+          <h4>Tracking Smoothing</h4>
           <div class="slider-row">
-            <label>Predictive Lookahead: <span id="val-lookahead">${settings.lookaheadMs}</span> ms</label>
-            <input type="range" id="slider-lookahead" min="0" max="80" step="5" value="${settings.lookaheadMs}" />
+            <label>Smoothing: <span id="val-tracking-smoothness">${getSmoothnessLabel(settings.trackingSmoothnessPercent ?? 50)}</span></label>
+            <input type="range" id="slider-tracking-smoothness" min="0" max="100" step="5" value="${settings.trackingSmoothnessPercent ?? 50}" />
           </div>
-          <div class="slider-row">
-            <label>Translation Smoothing: <span id="val-smooth-time">${settings.smoothTimeMs}</span> ms</label>
-            <input type="range" id="slider-smooth-time" min="15" max="120" step="5" value="${settings.smoothTimeMs}" />
+          <div style="display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--text-secondary); margin-top: 2px;">
+            <span>⚡ Snappy</span>
+            <span>Balanced</span>
+            <span>Smooth 🛡️</span>
           </div>
-          <label class="checkbox-row" style="margin-top: 8px;">
-            <input type="checkbox" id="toggle-deadband" ${settings.deadbandEnabled ? 'checked' : ''} />
-            <span>Stationary Anti-Jitter Lock (Freezes tremor when still)</span>
-          </label>
-          <small style="color: var(--text-secondary); font-size: 0.72rem; line-height: 1.3; display: block; margin-top: 6px;">
-            Lookahead compensates for camera/model latency. Smoothing uses a critically damped harmonic oscillator to eliminate 30Hz inter-frame stutter.
-          </small>
-        </div>
-
-        <!-- Smoothing Filter -->
-        <div class="setting-group">
-          <h4>One Euro Filter Tuning</h4>
-          <div class="slider-row">
-            <label>Min Cutoff (Hz): <span id="val-min-cutoff">${settings.minCutoff.toFixed(1)}</span></label>
-            <input type="range" id="slider-min-cutoff" min="0.2" max="4.0" step="0.1" value="${settings.minCutoff}" />
-          </div>
-          <div class="slider-row">
-            <label>Beta (Responsiveness): <span id="val-beta">${settings.beta.toFixed(1)}</span></label>
-            <input type="range" id="slider-beta" min="0.2" max="8.0" step="0.1" value="${settings.beta}" />
-          </div>
-          <small style="color: var(--text-secondary); font-size: 0.72rem; line-height: 1.3; display: block; margin-top: 4px;">
-            Higher Beta eliminates motion lag during head movement. Min Cutoff stabilizes stationary jitter.
+          <small style="color: var(--text-secondary); font-size: 0.72rem; line-height: 1.35; display: block; margin-top: 6px;">
+            Adaptive exponential smoothing balances jitter reduction when stationary with zero lag during head movement.
           </small>
         </div>
 
@@ -448,51 +429,22 @@ export class Controls {
       this.callbacks.onSceneChange(type);
     });
 
-    // Predictive Lookahead slider
-    const lookaheadSlider = this.settingsDrawer.querySelector('#slider-lookahead') as HTMLInputElement;
-    const lookaheadVal = this.settingsDrawer.querySelector('#val-lookahead');
-    lookaheadSlider?.addEventListener('input', (e) => {
-      const val = parseInt((e.target as HTMLInputElement).value, 10);
-      if (lookaheadVal) lookaheadVal.textContent = String(val);
-      this.perspectiveController.setLookaheadMs(val);
-      this.settingsManager.updateSettings({ lookaheadMs: val });
-    });
-
-    // Translation Smoothing Time (SmoothDamp) slider
-    const smoothTimeSlider = this.settingsDrawer.querySelector('#slider-smooth-time') as HTMLInputElement;
-    const smoothTimeVal = this.settingsDrawer.querySelector('#val-smooth-time');
-    smoothTimeSlider?.addEventListener('input', (e) => {
-      const val = parseInt((e.target as HTMLInputElement).value, 10);
-      if (smoothTimeVal) smoothTimeVal.textContent = String(val);
-      this.perspectiveController.setSmoothTimeMs(val);
-      this.settingsManager.updateSettings({ smoothTimeMs: val });
-    });
-
-    // Stationary Anti-Jitter Deadband toggle
-    const deadbandToggle = this.settingsDrawer.querySelector('#toggle-deadband') as HTMLInputElement;
-    deadbandToggle?.addEventListener('change', (e) => {
-      const checked = (e.target as HTMLInputElement).checked;
-      this.perspectiveController.setDeadbandEnabled(checked);
-      this.settingsManager.updateSettings({ deadbandEnabled: checked });
-    });
-
-    // Filter tuning sliders
-    const minCutoffSlider = this.settingsDrawer.querySelector('#slider-min-cutoff') as HTMLInputElement;
-    const minCutoffVal = this.settingsDrawer.querySelector('#val-min-cutoff');
-    minCutoffSlider?.addEventListener('input', (e) => {
-      const val = parseFloat((e.target as HTMLInputElement).value);
-      if (minCutoffVal) minCutoffVal.textContent = val.toFixed(1);
-      this.perspectiveController.filter.updateConfig({ minCutoff: val });
-      this.settingsManager.updateSettings({ minCutoff: val });
-    });
-
-    const betaSlider = this.settingsDrawer.querySelector('#slider-beta') as HTMLInputElement;
-    const betaVal = this.settingsDrawer.querySelector('#val-beta');
-    betaSlider?.addEventListener('input', (e) => {
-      const val = parseFloat((e.target as HTMLInputElement).value);
-      if (betaVal) betaVal.textContent = val.toFixed(1);
-      this.perspectiveController.filter.updateConfig({ beta: val });
-      this.settingsManager.updateSettings({ beta: val });
+    // Consolidated Tracking Smoothing slider
+    const smoothnessSlider = this.settingsDrawer.querySelector('#slider-tracking-smoothness') as HTMLInputElement;
+    const smoothnessVal = this.settingsDrawer.querySelector('#val-tracking-smoothness');
+    smoothnessSlider?.addEventListener('input', (e) => {
+      const pct = parseInt((e.target as HTMLInputElement).value, 10);
+      if (smoothnessVal) smoothnessVal.textContent = getSmoothnessLabel(pct);
+      this.perspectiveController.setTrackingSmoothnessPercent(pct);
+      const params = computeSmoothingParameters(pct);
+      this.settingsManager.updateSettings({
+        trackingSmoothnessPercent: pct,
+        lookaheadMs: params.lookaheadMs,
+        smoothTimeMs: params.smoothTimeMs,
+        minCutoff: params.minCutoff,
+        beta: params.beta,
+        deadbandEnabled: params.deadbandEnabled
+      });
     });
 
     // Reset Settings to Defaults button
@@ -502,10 +454,7 @@ export class Controls {
       this.syncUiFromSettings(defaults);
       this.perspectiveController.setProjectionMode(defaults.projectionMode);
       this.perspectiveController.setDepthMode(defaults.depthMode);
-      this.perspectiveController.setLookaheadMs(defaults.lookaheadMs);
-      this.perspectiveController.setSmoothTimeMs(defaults.smoothTimeMs);
-      this.perspectiveController.setDeadbandEnabled(defaults.deadbandEnabled);
-      this.perspectiveController.filter.updateConfig({ minCutoff: defaults.minCutoff, beta: defaults.beta });
+      this.perspectiveController.setTrackingSmoothnessPercent(defaults.trackingSmoothnessPercent);
       this.callbacks.onSceneChange(defaults.sceneType);
       this.callbacks.onInputModeChange(defaults.inputMode);
     });
@@ -526,28 +475,12 @@ export class Controls {
     if (sceneSelect) sceneSelect.value = settings.sceneType;
     this.setScene(settings.sceneType);
 
-    const lookaheadSlider = this.settingsDrawer.querySelector('#slider-lookahead') as HTMLInputElement;
-    const lookaheadVal = this.settingsDrawer.querySelector('#val-lookahead');
-    if (lookaheadSlider) lookaheadSlider.value = String(settings.lookaheadMs);
-    if (lookaheadVal) lookaheadVal.textContent = String(settings.lookaheadMs);
-
-    const smoothTimeSlider = this.settingsDrawer.querySelector('#slider-smooth-time') as HTMLInputElement;
-    const smoothTimeVal = this.settingsDrawer.querySelector('#val-smooth-time');
-    if (smoothTimeSlider) smoothTimeSlider.value = String(settings.smoothTimeMs);
-    if (smoothTimeVal) smoothTimeVal.textContent = String(settings.smoothTimeMs);
-
-    const deadbandToggle = this.settingsDrawer.querySelector('#toggle-deadband') as HTMLInputElement;
-    if (deadbandToggle) deadbandToggle.checked = settings.deadbandEnabled;
-
-    const minCutoffSlider = this.settingsDrawer.querySelector('#slider-min-cutoff') as HTMLInputElement;
-    const minCutoffVal = this.settingsDrawer.querySelector('#val-min-cutoff');
-    if (minCutoffSlider) minCutoffSlider.value = String(settings.minCutoff);
-    if (minCutoffVal) minCutoffVal.textContent = settings.minCutoff.toFixed(1);
-
-    const betaSlider = this.settingsDrawer.querySelector('#slider-beta') as HTMLInputElement;
-    const betaVal = this.settingsDrawer.querySelector('#val-beta');
-    if (betaSlider) betaSlider.value = String(settings.beta);
-    if (betaVal) betaVal.textContent = settings.beta.toFixed(1);
+    const smoothnessSlider = this.settingsDrawer.querySelector('#slider-tracking-smoothness') as HTMLInputElement;
+    const smoothnessVal = this.settingsDrawer.querySelector('#val-tracking-smoothness');
+    const smoothnessPct = settings.trackingSmoothnessPercent ?? 50;
+    if (smoothnessSlider) smoothnessSlider.value = String(smoothnessPct);
+    if (smoothnessVal) smoothnessVal.textContent = getSmoothnessLabel(smoothnessPct);
+    this.perspectiveController.setTrackingSmoothnessPercent(smoothnessPct);
 
     this.setDebugHudVisible(settings.debugHudVisible);
   }

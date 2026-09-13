@@ -15,6 +15,7 @@ import { ProjectionMath } from '../math/ProjectionMath';
 import { ViewerPose } from '../tracking/TrackingState';
 import { VectorFilter } from '../filtering/VectorFilter';
 import { KinematicPredictor } from '../filtering/KinematicPredictor';
+import { computeSmoothingParameters } from '../settings/SettingsManager';
 
 export enum ProjectionMode {
   Accurate = 'Accurate',
@@ -136,6 +137,17 @@ export class PerspectiveController {
 
   public getBeta(): number {
     return this.filter.getConfig().beta;
+  }
+
+  /**
+   * Configures tracking smoothing from a consolidated percentage (0 = Snappy, 50 = Balanced, 100 = Ultra-Smooth).
+   */
+  public setTrackingSmoothnessPercent(percent: number): void {
+    const params = computeSmoothingParameters(percent);
+    this.setLookaheadMs(params.lookaheadMs);
+    this.setSmoothTimeMs(params.smoothTimeMs);
+    this.setDeadbandEnabled(params.deadbandEnabled);
+    this.filter.updateConfig({ minCutoff: params.minCutoff, beta: params.beta });
   }
 
   /**

@@ -43,10 +43,45 @@ export interface AppSettings {
   debugHudVisible: boolean;
   /** Picture-in-Picture webcam & landmarks overlay visibility */
   webcamPipVisible: boolean;
+  /** Consolidated tracking smoothness percentage (0 = Snappy, 50 = Balanced, 100 = Ultra-Smooth) */
+  trackingSmoothnessPercent: number;
   /** Custom fish model scale in centimeters */
   customFishScaleCm: number;
   /** Custom fish forward axis orientation */
   customFishForwardAxis: ForwardAxis;
+}
+
+export function computeSmoothingParameters(percent: number) {
+  const p = Math.max(0, Math.min(100, Math.round(percent)));
+  const u = p <= 50 ? p / 50 : (p - 50) / 50;
+
+  // smoothTime: 20ms at 0%, 55ms at 50%, 95ms at 100%
+  const smoothTimeMs = Math.round(p <= 50 ? 20 + u * 35 : 55 + u * 40);
+
+  // minCutoff: 1.8 Hz at 0%, 1.0 Hz at 50%, 0.4 Hz at 100%
+  const minCutoff = parseFloat((p <= 50 ? 1.8 - u * 0.8 : 1.0 - u * 0.6).toFixed(2));
+
+  // beta: 3.5 at 0%, 2.2 at 50%, 1.0 at 100%
+  const beta = parseFloat((p <= 50 ? 3.5 - u * 1.3 : 2.2 - u * 1.2).toFixed(2));
+
+  // lookahead: 35ms standard
+  const lookaheadMs = 35;
+  const deadbandEnabled = true;
+
+  return {
+    trackingSmoothnessPercent: p,
+    smoothTimeMs,
+    minCutoff,
+    beta,
+    lookaheadMs,
+    deadbandEnabled
+  };
+}
+
+export function getSmoothnessLabel(percent: number): string {
+  if (percent <= 25) return `Snappy (${percent}%)`;
+  if (percent <= 70) return `Balanced (${percent}%)`;
+  return `Ultra-Smooth (${percent}%)`;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -62,6 +97,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   beta: 2.2,
   debugHudVisible: true,
   webcamPipVisible: false,
+  trackingSmoothnessPercent: 50,
   customFishScaleCm: 4.5,
   customFishForwardAxis: '+X'
 };
@@ -139,6 +175,7 @@ export class SettingsManager {
     s.smoothTimeMs = Math.max(15, Math.min(120, isNaN(s.smoothTimeMs) ? DEFAULT_APP_SETTINGS.smoothTimeMs : s.smoothTimeMs));
     s.minCutoff = Math.max(0.2, Math.min(4.0, isNaN(s.minCutoff) ? DEFAULT_APP_SETTINGS.minCutoff : s.minCutoff));
     s.beta = Math.max(0.2, Math.min(8.0, isNaN(s.beta) ? DEFAULT_APP_SETTINGS.beta : s.beta));
+    s.trackingSmoothnessPercent = Math.max(0, Math.min(100, isNaN(s.trackingSmoothnessPercent) ? DEFAULT_APP_SETTINGS.trackingSmoothnessPercent : s.trackingSmoothnessPercent));
     s.customFishScaleCm = Math.max(2.0, Math.min(15.0, isNaN(s.customFishScaleCm) ? DEFAULT_APP_SETTINGS.customFishScaleCm : s.customFishScaleCm));
 
     // Ensure boolean fields are boolean

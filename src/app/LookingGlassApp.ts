@@ -68,10 +68,7 @@ export class LookingGlassApp {
     // Apply persisted settings to PerspectiveController
     this.perspectiveController.setProjectionMode(settings.projectionMode);
     this.perspectiveController.setDepthMode(settings.depthMode);
-    this.perspectiveController.setLookaheadMs(settings.lookaheadMs);
-    this.perspectiveController.setSmoothTimeMs(settings.smoothTimeMs);
-    this.perspectiveController.setDeadbandEnabled(settings.deadbandEnabled);
-    this.perspectiveController.filter.updateConfig({ minCutoff: settings.minCutoff, beta: settings.beta });
+    this.perspectiveController.setTrackingSmoothnessPercent(settings.trackingSmoothnessPercent ?? 50);
 
     // Apply persisted scene if not default Aquarium
     if (settings.sceneType !== SceneType.Aquarium) {
