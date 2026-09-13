@@ -117,7 +117,14 @@ export class LookingGlassApp {
         onToggleDebugHud: (visible) => {
           this.sceneManager.demoScene.setAxesVisible(visible);
         },
-        getCurrentRawPose: () => this.currentRawPose
+        getCurrentRawPose: () => this.currentRawPose,
+        getBiometricDistance: () => {
+          if (!this.currentResult?.landmarks || this.currentResult.landmarks.length < 264) {
+            return null;
+          }
+          const screen = this.calibrationManager.getScreenGeometry();
+          return this.poseEstimator.estimateBiometricDistance(this.currentResult.landmarks, screen);
+        }
       }
     );
 

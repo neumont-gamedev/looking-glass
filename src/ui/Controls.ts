@@ -1,9 +1,10 @@
 /**
  * Controls.ts
  *
- * Top bar navigation and settings drawer component.
+ * Top bar navigation and unified settings & calibration drawer component.
  * Allows live switching between Webcam tracking, Mouse simulation, Auto demo,
- * Projection modes, Filter tuning, and Debug visualizations.
+ * Projection modes, Filter tuning, Monitor presets & dimension sliders,
+ * Neutral center calibration, and Viewing distance calibration.
  */
 
 import { CalibrationPanel } from './CalibrationPanel';
@@ -11,7 +12,9 @@ import { PerspectiveController, ProjectionMode } from '../rendering/PerspectiveC
 import { TrackingDebugView } from '../tracking/TrackingDebugView';
 import { SceneType } from '../rendering/DemoScene';
 import { CalibrationManager } from '../calibration/CalibrationManager';
+import { DistanceCalibrationMode } from '../calibration/CalibrationData';
 import { ViewerPose } from '../tracking/TrackingState';
+import { BiometricDistanceResult } from '../tracking/HeadPoseEstimator';
 import { SettingsManager, InputMode, AppSettings, computeSmoothingParameters, getSmoothnessLabel } from '../settings/SettingsManager';
 
 export { InputMode } from '../settings/SettingsManager';
@@ -22,6 +25,7 @@ export interface ControlsCallbacks {
   onFeedFish?: () => void;
   onToggleDebugHud?: (visible: boolean) => void;
   getCurrentRawPose?: () => ViewerPose | null;
+  getBiometricDistance?: () => BiometricDistanceResult | null;
 }
 
 export class Controls {
@@ -39,6 +43,20 @@ export class Controls {
   public readonly calibrationManager: CalibrationManager;
   private settingsManager: SettingsManager;
   private callbacks: ControlsCallbacks;
+
+  private activeDistanceTab: DistanceCalibrationMode = 'wireframe';
+  private biometricTimer: number | null = null;
+  private latestBiometricResult: BiometricDistanceResult | null = null;
+
+  private debugFpsValEl: HTMLElement | null = null;
+  private debugTrackFpsValEl: HTMLElement | null = null;
+  private debugLatencyValEl: HTMLElement | null = null;
+  private debugPoseXEl: HTMLElement | null = null;
+  private debugPoseYEl: HTMLElement | null = null;
+  private debugPoseZEl: HTMLElement | null = null;
+  private debugHudBoxEl: HTMLElement | null = null;
+  private feedFishBtn: HTMLElement | null = null;
+  private isDebugHudVisible: boolean = true;
 
   constructor(
     perspectiveController: PerspectiveController,
@@ -59,6 +77,7 @@ export class Controls {
     this.currentInputMode = initialSettings.inputMode;
     this.isDebugHudVisible = initialSettings.debugHudVisible;
     this.currentSceneType = initialSettings.sceneType;
+    this.activeDistanceTab = this.calibrationManager.getData().distanceMode ?? 'wireframe';
 
     this.topBar = document.createElement('header');
     this.topBar.className = 'hud-topbar';
@@ -71,57 +90,38 @@ export class Controls {
     this.scenePopover.className = 'scene-popover';
     this.scenePopover.style.display = 'none';
 
-    this.calibrationPanel.setOnOpenCallback(() => {
-      if (this.isDrawerOpen) {
-        this.closeDrawer();
-      }
-      if (this.isSceneOpen) {
-        this.closeScenePopover();
-      }
-    });
-
     this.buildTopBar();
     this.buildScenePopover();
-    this.buildDrawer();
+    this.buildSettingsDrawer();
 
     document.body.appendChild(this.topBar);
-    document.body.appendChild(this.settingsDrawer);
     document.body.appendChild(this.scenePopover);
-  }
+    document.body.appendChild(this.settingsDrawer);
 
-  public setInputMode(mode: InputMode): void {
-    this.currentInputMode = mode;
-    this.settingsManager.updateSettings({ inputMode: mode });
-    const select = this.settingsDrawer.querySelector('#input-mode-select') as HTMLSelectElement;
-    if (select) select.value = mode;
-    this.callbacks.onInputModeChange(mode);
-  }
+    this.setupEventListeners();
 
-  public getInputMode(): InputMode {
-    return this.currentInputMode;
+    // Link calibrationPanel open/toggle to the drawer
+    this.calibrationPanel.setOnOpenCallback(() => {
+      this.openDrawer();
+    });
   }
-
-  private debugFpsValEl: HTMLElement | null = null;
-  private debugTrackFpsValEl: HTMLElement | null = null;
-  private debugLatencyValEl: HTMLElement | null = null;
-  private debugPoseXEl: HTMLElement | null = null;
-  private debugPoseYEl: HTMLElement | null = null;
-  private debugPoseZEl: HTMLElement | null = null;
-  private debugHudBoxEl: HTMLElement | null = null;
-  private feedFishBtn: HTMLElement | null = null;
-  private isDebugHudVisible: boolean = true;
 
   private buildTopBar(): void {
     this.topBar.innerHTML = `
       <div class="topbar-left">
-        <div class="logo-group">
-          <h1 class="app-title">LOOKING GLASS</h1>
+        <div class="topbar-brand">
+          <span class="brand-logo">🪞</span>
+          <div class="brand-text">
+            <span class="brand-title">Looking Glass</span>
+            <span class="brand-subtitle">Head-Coupled 3D Window</span>
+          </div>
         </div>
-        <div class="debug-hud-box" id="debug-hud-box">
+        <div class="debug-hud-compact" id="debug-hud-box">
           <div class="debug-hud-row">
             <div class="debug-hud-item">
-              <span class="debug-hud-label">FPS</span>
-              <span class="debug-hud-val" id="debug-fps-val">60</span>
+              <span class="debug-hud-label">RENDER</span>
+              <span class="debug-hud-val" id="debug-fps-val">--</span>
+              <span class="debug-hud-unit">fps</span>
             </div>
             <div class="debug-hud-divider"></div>
             <div class="debug-hud-item">
@@ -151,8 +151,7 @@ export class Controls {
         <button class="btn btn-hud btn-icon" id="btn-feed-fish" title="Feed Fish (F)">🦐</button>
         <button class="btn btn-hud btn-icon" id="btn-fullscreen" title="Toggle Fullscreen">⛶</button>
         <button class="btn btn-hud btn-icon" id="btn-scene-menu" title="Scenes (Aquarium, Model Viewer, Calibration)">🎬</button>
-        <button class="btn btn-hud btn-icon" id="btn-calibrate" title="Display Calibration (Window, Depth, Sensitivity)">⚙</button>
-        <button class="btn btn-hud btn-icon" id="btn-toggle-settings" title="Configuration & Settings">
+        <button class="btn btn-hud btn-icon" id="btn-toggle-settings" title="Settings & Calibration (S)">
           <svg class="btn-svg-icon" viewBox="0 0 24 24">
             <line x1="4" y1="21" x2="4" y2="14"></line>
             <line x1="4" y1="10" x2="4" y2="3"></line>
@@ -197,19 +196,6 @@ export class Controls {
       e.stopPropagation();
       this.toggleScenePopover();
     });
-
-    const openCalibrationHandler = () => {
-      if (this.isDrawerOpen) {
-        this.closeDrawer();
-      }
-      if (this.isSceneOpen) {
-        this.closeScenePopover();
-      }
-      this.calibrationPanel.toggle();
-    };
-
-    this.topBar.querySelector('#btn-calibrate')?.addEventListener('click', openCalibrationHandler);
-    this.topBar.querySelector('#btn-gear')?.addEventListener('click', openCalibrationHandler);
 
     this.topBar.querySelector('#btn-toggle-settings')?.addEventListener('click', () => {
       if (this.calibrationPanel.getIsOpen()) {
@@ -341,11 +327,16 @@ export class Controls {
     }
     this.isDrawerOpen = true;
     this.settingsDrawer.style.display = 'block';
+    if (this.activeDistanceTab === 'biometric') {
+      this.startBiometricPolling();
+    }
+    this.updateDrawerCalibrationReadouts();
   }
 
   public closeDrawer(): void {
     this.isDrawerOpen = false;
     this.settingsDrawer.style.display = 'none';
+    this.stopBiometricPolling();
   }
 
   public toggleDrawer(): void {
@@ -365,6 +356,18 @@ export class Controls {
     if (select && select.value !== sceneType) {
       select.value = sceneType;
     }
+  }
+
+  public setInputMode(mode: InputMode): void {
+    this.currentInputMode = mode;
+    const select = this.settingsDrawer.querySelector('#input-mode-select') as HTMLSelectElement;
+    if (select && select.value !== mode) {
+      select.value = mode;
+    }
+  }
+
+  public getInputMode(): InputMode {
+    return this.currentInputMode;
   }
 
   public updateDebugHud(data: {
@@ -389,40 +392,156 @@ export class Controls {
 
     if (this.debugTrackFpsValEl) {
       if (this.currentInputMode === InputMode.Webcam) {
-        this.debugTrackFpsValEl.textContent = data.trackFps > 0 ? data.trackFps.toString() : '--';
-        this.debugTrackFpsValEl.style.color = data.trackFps >= 25 ? '#00ff88' : data.trackFps >= 15 ? '#00e5ff' : '#94a3b8';
+        this.debugTrackFpsValEl.textContent = data.isTrackingActive ? data.trackFps.toString() : '0';
+        this.debugTrackFpsValEl.style.color = data.isTrackingActive ? '#00ff88' : '#6b7280';
+      } else if (this.currentInputMode === InputMode.Mouse) {
+        this.debugTrackFpsValEl.textContent = 'M';
+        this.debugTrackFpsValEl.style.color = '#00e5ff';
       } else {
-        this.debugTrackFpsValEl.textContent = this.currentInputMode === InputMode.Mouse ? 'Mouse' : 'Auto';
-        this.debugTrackFpsValEl.style.color = '#38bdf8';
+        this.debugTrackFpsValEl.textContent = 'A';
+        this.debugTrackFpsValEl.style.color = '#a855f7';
       }
     }
 
     if (this.debugLatencyValEl) {
-      if (this.currentInputMode === InputMode.Webcam && data.latencyMs > 0) {
-        this.debugLatencyValEl.textContent = data.latencyMs.toFixed(1);
-        this.debugLatencyValEl.style.color = data.latencyMs <= 20 ? '#00ff88' : data.latencyMs <= 35 ? '#00e5ff' : '#ffb703';
+      if (this.currentInputMode === InputMode.Webcam) {
+        this.debugLatencyValEl.textContent = data.isTrackingActive ? data.latencyMs.toFixed(1) : '--';
       } else {
-        this.debugLatencyValEl.textContent = '--';
-        this.debugLatencyValEl.style.color = '#64748b';
+        this.debugLatencyValEl.textContent = '0.0';
       }
     }
 
-    if (this.debugPoseXEl && this.debugPoseYEl && this.debugPoseZEl) {
-      const xCm = data.poseX * 100;
-      const yCm = data.poseY * 100;
-      const zCm = data.poseZ * 100;
-
-      const xSign = xCm >= 0 ? '+' : '';
-      const ySign = yCm >= 0 ? '+' : '';
-
-      this.debugPoseXEl.textContent = `${xSign}${xCm.toFixed(1)}`;
-      this.debugPoseYEl.textContent = `${ySign}${yCm.toFixed(1)}`;
-      this.debugPoseZEl.textContent = `${zCm.toFixed(1)}`;
+    if (this.debugPoseXEl) {
+      const cmX = data.poseX * 100;
+      this.debugPoseXEl.textContent = (cmX >= 0 ? '+' : '') + cmX.toFixed(1);
+    }
+    if (this.debugPoseYEl) {
+      const cmY = data.poseY * 100;
+      this.debugPoseYEl.textContent = (cmY >= 0 ? '+' : '') + cmY.toFixed(1);
+    }
+    if (this.debugPoseZEl) {
+      const cmZ = data.poseZ * 100;
+      this.debugPoseZEl.textContent = cmZ.toFixed(1);
     }
   }
 
+  private setupEventListeners(): void {
+    window.addEventListener('keydown', (e) => {
+      // Don't intercept hotkeys if typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) {
+        return;
+      }
+      if (e.key === 'c' || e.key === 'C' || e.key === 's' || e.key === 'S') {
+        this.toggleDrawer();
+      }
+      if (e.key === 'f' || e.key === 'F') {
+        if (this.currentSceneType === SceneType.Aquarium && this.callbacks.onFeedFish) {
+          this.callbacks.onFeedFish();
+        }
+      }
+      if (e.key === 'd' || e.key === 'D') {
+        this.toggleDebugHud();
+      }
+      if (e.key === 'Escape' || e.code === 'Escape') {
+        if (this.isSceneOpen) this.closeScenePopover();
+        if (this.isDrawerOpen) this.closeDrawer();
+      }
+    });
+  }
 
-  private buildDrawer(): void {
+  private startBiometricPolling(): void {
+    this.stopBiometricPolling();
+    this.biometricTimer = window.setInterval(() => {
+      if (!this.isDrawerOpen || this.activeDistanceTab !== 'biometric') return;
+
+      const bio = this.callbacks.getBiometricDistance?.();
+      this.latestBiometricResult = bio ?? null;
+
+      const bioVal = this.settingsDrawer.querySelector('#drawer-bio-dist-val');
+      const bioStatus = this.settingsDrawer.querySelector('#drawer-bio-status');
+      const bioDot = this.settingsDrawer.querySelector('#drawer-bio-dot') as HTMLElement;
+      const bioLockBtn = this.settingsDrawer.querySelector('#btn-drawer-bio-lock') as HTMLButtonElement;
+
+      if (bio && bio.confidence > 0.4) {
+        const cm = bio.distanceMeters * 100;
+        const inches = bio.distanceMeters * 39.3701;
+        if (bioVal) bioVal.textContent = `${cm.toFixed(0)} cm (${inches.toFixed(1)} in)`;
+
+        const methodText = bio.hasIris
+          ? 'Tracking Iris & Pupils'
+          : 'Tracking Interpupillary Distance (~63mm)';
+        if (bioStatus) bioStatus.textContent = `Active • ${methodText}`;
+        if (bioDot) {
+          bioDot.style.background = '#10b981';
+          bioDot.style.boxShadow = '0 0 8px #10b981';
+        }
+        if (bioLockBtn) bioLockBtn.disabled = false;
+      } else {
+        if (bioVal) bioVal.textContent = '-- cm (-- in)';
+        if (bioStatus) bioStatus.textContent = 'Look at webcam to detect face...';
+        if (bioDot) {
+          bioDot.style.background = '#f59e0b';
+          bioDot.style.boxShadow = '0 0 8px #f59e0b';
+        }
+        if (bioLockBtn) bioLockBtn.disabled = true;
+      }
+    }, 120);
+  }
+
+  private stopBiometricPolling(): void {
+    if (this.biometricTimer !== null) {
+      clearInterval(this.biometricTimer);
+      this.biometricTimer = null;
+    }
+  }
+
+  private updateDrawerCalibrationReadouts(): void {
+    const data = this.calibrationManager.getData();
+    const wCm = (data.screenWidth * 100).toFixed(1);
+    const hCm = (data.screenHeight * 100).toFixed(1);
+    const wIn = (data.screenWidth * 39.3701).toFixed(1);
+    const hIn = (data.screenHeight * 39.3701).toFixed(1);
+    const diagIn = (data.screenDiagonalInches ?? (Math.hypot(data.screenWidth, data.screenHeight) * 39.3701)).toFixed(1);
+    const aspect = (data.screenWidth / data.screenHeight).toFixed(2);
+    const distCm = (data.viewingDistance * 100).toFixed(0);
+    const distIn = (data.viewingDistance * 39.3701).toFixed(1);
+
+    // Width & Height sliders & labels
+    const widthSlider = this.settingsDrawer.querySelector('#drawer-width-slider') as HTMLInputElement;
+    const widthVal = this.settingsDrawer.querySelector('#drawer-width-val');
+    if (widthSlider && document.activeElement !== widthSlider) widthSlider.value = wCm;
+    if (widthVal) widthVal.textContent = `${wCm} cm (${wIn} in)`;
+
+    const heightSlider = this.settingsDrawer.querySelector('#drawer-height-slider') as HTMLInputElement;
+    const heightVal = this.settingsDrawer.querySelector('#drawer-height-val');
+    if (heightSlider && document.activeElement !== heightSlider) heightSlider.value = hCm;
+    if (heightVal) heightVal.textContent = `${hCm} cm (${hIn} in)`;
+
+    // Readout box
+    const dimReadout = this.settingsDrawer.querySelector('#drawer-dim-readout');
+    if (dimReadout) {
+      dimReadout.innerHTML = `Physical Window: ${wCm} × ${hCm} cm (${wIn}" × ${hIn}")<br><span style="font-size: 0.68rem; opacity: 0.8;">Diagonal: ${diagIn}" • Aspect: ${aspect}:1</span>`;
+    }
+
+    // Preset buttons active state
+    const currentDiag = parseFloat(diagIn);
+    const presetBtns = this.settingsDrawer.querySelectorAll('.drawer-preset-btn');
+    presetBtns.forEach((btn) => {
+      const d = parseFloat(btn.getAttribute('data-diag') || '0');
+      btn.classList.toggle('active', Math.abs(currentDiag - d) < 0.8);
+    });
+
+    // Distance readouts
+    const wireframeDistVal = this.settingsDrawer.querySelector('#drawer-wireframe-dist-val');
+    if (wireframeDistVal) wireframeDistVal.textContent = `${distCm} cm (${distIn} in)`;
+
+    const manualSlider = this.settingsDrawer.querySelector('#drawer-dist-slider') as HTMLInputElement;
+    const manualVal = this.settingsDrawer.querySelector('#drawer-dist-val');
+    if (manualSlider && document.activeElement !== manualSlider) manualSlider.value = distCm;
+    if (manualVal) manualVal.textContent = `${distCm} cm (${distIn} in)`;
+  }
+
+  private buildSettingsDrawer(): void {
     const settings = this.settingsManager.getSettings();
     const calibData = this.calibrationManager.getData();
 
@@ -435,7 +554,7 @@ export class Controls {
 
     this.settingsDrawer.innerHTML = `
       <div class="drawer-header">
-        <h3>Configuration & Settings</h3>
+        <h3>⚙ Settings & Calibration</h3>
         <button class="close-btn" id="drawer-close-btn">&times;</button>
       </div>
       <div class="drawer-content">
@@ -472,45 +591,110 @@ export class Controls {
           </div>
         </div>
 
-        <!-- Screen & Calibration Section -->
+        <!-- Screen Dimensions Section -->
         <div class="setting-group" style="margin-top: 14px; border-top: 1px solid var(--bg-surface-border); padding-top: 12px;">
-          <h4>Screen & Calibration</h4>
-          <div style="font-size: 0.76rem; color: var(--text-secondary); margin-bottom: 8px; line-height: 1.45; background: rgba(0, 0, 0, 0.2); padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.05);">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-              <span>Display Window:</span>
-              <strong id="drawer-calib-dim" style="color: var(--accent-cyan); font-family: var(--font-mono);">${(calibData.screenWidth * 100).toFixed(1)} × ${(calibData.screenHeight * 100).toFixed(1)} cm</strong>
-            </div>
-            <div style="display: flex; justify-content: space-between;">
-              <span>Viewing Distance:</span>
-              <strong id="drawer-calib-dist" style="color: var(--accent-cyan); font-family: var(--font-mono);">${(calibData.viewingDistance * 100).toFixed(0)} cm</strong>
-            </div>
+          <h4>Screen Dimensions</h4>
+          <div style="font-size: 0.70rem; color: var(--text-secondary); margin-bottom: 5px;">Monitor Presets:</div>
+          <div class="calib-preset-buttons" style="margin-bottom: 10px;">
+            <button type="button" class="btn-preset drawer-preset-btn" data-diag="14">14"</button>
+            <button type="button" class="btn-preset drawer-preset-btn" data-diag="16">16"</button>
+            <button type="button" class="btn-preset drawer-preset-btn" data-diag="24">24"</button>
+            <button type="button" class="btn-preset drawer-preset-btn" data-diag="27">27"</button>
+            <button type="button" class="btn-preset drawer-preset-btn" data-diag="32">32"</button>
           </div>
-          <div style="margin-bottom: 8px;">
-            <div style="font-size: 0.70rem; color: var(--text-secondary); margin-bottom: 5px;">Monitor Presets:</div>
-            <div class="calib-preset-buttons">
-              <button type="button" class="btn-preset drawer-preset-btn ${Math.abs((calibData.screenDiagonalInches ?? 24) - 14) < 0.8 ? 'active' : ''}" data-diag="14">14"</button>
-              <button type="button" class="btn-preset drawer-preset-btn ${Math.abs((calibData.screenDiagonalInches ?? 24) - 16) < 0.8 ? 'active' : ''}" data-diag="16">16"</button>
-              <button type="button" class="btn-preset drawer-preset-btn ${Math.abs((calibData.screenDiagonalInches ?? 24) - 24) < 0.8 ? 'active' : ''}" data-diag="24">24"</button>
-              <button type="button" class="btn-preset drawer-preset-btn ${Math.abs((calibData.screenDiagonalInches ?? 24) - 27) < 0.8 ? 'active' : ''}" data-diag="27">27"</button>
-              <button type="button" class="btn-preset drawer-preset-btn ${Math.abs((calibData.screenDiagonalInches ?? 24) - 32) < 0.8 ? 'active' : ''}" data-diag="32">32"</button>
-            </div>
+          <div class="slider-row">
+            <label>Width: <span id="drawer-width-val">${(calibData.screenWidth * 100).toFixed(1)} cm (${(calibData.screenWidth * 39.3701).toFixed(1)} in)</span></label>
+            <input type="range" id="drawer-width-slider" min="20" max="150" step="0.5" value="${(calibData.screenWidth * 100).toFixed(1)}" />
           </div>
+          <div class="slider-row">
+            <label>Height: <span id="drawer-height-val">${(calibData.screenHeight * 100).toFixed(1)} cm (${(calibData.screenHeight * 39.3701).toFixed(1)} in)</span></label>
+            <input type="range" id="drawer-height-slider" min="12" max="100" step="0.5" value="${(calibData.screenHeight * 100).toFixed(1)}" />
+          </div>
+          <div class="screen-metric-readout" id="drawer-dim-readout" style="font-size: 0.73rem; color: var(--text-secondary); margin-top: 6px; line-height: 1.4; background: rgba(0,0,0,0.25); padding: 6px 8px; border-radius: 6px;">
+            Physical Window: ${(calibData.screenWidth * 100).toFixed(1)} × ${(calibData.screenHeight * 100).toFixed(1)} cm (${(calibData.screenWidth * 39.3701).toFixed(1)}" × ${(calibData.screenHeight * 39.3701).toFixed(1)}")
+            <br><span style="font-size: 0.68rem; opacity: 0.8;">Diagonal: ${(Math.hypot(calibData.screenWidth, calibData.screenHeight) * 39.3701).toFixed(1)}" • Aspect: ${(calibData.screenWidth / calibData.screenHeight).toFixed(2)}:1</span>
+          </div>
+        </div>
+
+        <!-- Neutral Center Position Section -->
+        <div class="setting-group" style="margin-top: 14px; border-top: 1px solid var(--bg-surface-border); padding-top: 12px;">
+          <h4>Neutral Center</h4>
+          <p style="font-size: 0.74rem; color: var(--text-secondary); margin-bottom: 8px;">Sit centered in front of your display and look directly at the center of the screen:</p>
           <div style="display: flex; gap: 6px;">
             <button id="btn-drawer-recalibrate-center" class="btn" style="flex: 1; border: 1px solid rgba(0, 229, 255, 0.4); color: var(--accent-cyan); background: rgba(0, 229, 255, 0.08); cursor: pointer; padding: 7px 10px; font-size: 0.76rem; transition: background 0.2s;">
-              🎯 Set Center
+              🎯 Set Center Position
             </button>
             <button id="btn-drawer-reset-center" class="btn" style="border: 1px solid rgba(255, 255, 255, 0.15); color: var(--text-secondary); background: rgba(255, 255, 255, 0.05); cursor: pointer; padding: 7px 10px; font-size: 0.76rem; transition: background 0.2s;" title="Reset Center to (0, 0)">
               ↺ (0, 0)
             </button>
           </div>
-          <button id="btn-drawer-open-calibration" class="btn btn-primary" style="width: 100%; margin-top: 6px; cursor: pointer; padding: 7px 12px; font-size: 0.78rem;">
-            ⚙ Open Guided Calibration Window
-          </button>
-          <div id="drawer-center-feedback" class="status-note" style="display: none; margin-top: 6px; font-size: 0.75rem; color: #10b981; font-weight: 500;"></div>
+          <div id="drawer-center-feedback" class="status-note" style="display: none; margin-top: 6px; font-size: 0.74rem; color: #10b981; font-weight: 500;"></div>
+        </div>
+
+        <!-- Viewing Distance Section -->
+        <div class="setting-group" style="margin-top: 14px; border-top: 1px solid var(--bg-surface-border); padding-top: 12px;">
+          <h4>Viewing Distance</h4>
+          <div class="calib-tabs" style="margin-bottom: 10px;">
+            <button type="button" class="calib-tab-btn ${this.activeDistanceTab === 'wireframe' ? 'active' : ''}" data-tab="wireframe">
+              📐 Wireframe
+            </button>
+            <button type="button" class="calib-tab-btn ${this.activeDistanceTab === 'biometric' ? 'active' : ''}" data-tab="biometric">
+              👁️ Biometric
+            </button>
+            <button type="button" class="calib-tab-btn ${this.activeDistanceTab === 'manual' ? 'active' : ''}" data-tab="manual">
+              📏 Manual
+            </button>
+          </div>
+
+          <!-- Wireframe Mode -->
+          <div class="calib-tab-content ${this.activeDistanceTab === 'wireframe' ? 'active' : ''}" id="drawer-tab-wireframe">
+            <div class="wireframe-launcher-card" style="padding: 10px; margin-bottom: 6px;">
+              <p style="font-size: 0.74rem; color: var(--text-secondary); margin-bottom: 8px; line-height: 1.35;">
+                Aligns a 3D wireframe box with corner guide brackets using live head-coupled perspective.
+              </p>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span style="font-size: 0.74rem; color: var(--text-secondary);">Current Distance:</span>
+                <strong id="drawer-wireframe-dist-val" style="color: var(--accent-cyan); font-family: var(--font-mono); font-size: 0.78rem;">${(calibData.viewingDistance * 100).toFixed(0)} cm (${(calibData.viewingDistance * 39.3701).toFixed(1)} in)</strong>
+              </div>
+              <button class="btn btn-primary" id="btn-drawer-wireframe" style="width: 100%; font-size: 0.76rem; padding: 7px 10px;">
+                Launch Wireframe Alignment Mode
+              </button>
+              <div class="status-note" id="drawer-wireframe-feedback" style="font-size: 0.72rem; margin-top: 6px;"></div>
+            </div>
+          </div>
+
+          <!-- Biometric Mode -->
+          <div class="calib-tab-content ${this.activeDistanceTab === 'biometric' ? 'active' : ''}" id="drawer-tab-biometric">
+            <div class="biometric-readout-card" style="padding: 10px; margin-bottom: 6px;">
+              <div class="biometric-status" style="margin-bottom: 6px;">
+                <span class="status-dot" id="drawer-bio-dot"></span>
+                <span id="drawer-bio-status" style="font-size: 0.74rem;">Detecting face landmarks...</span>
+              </div>
+              <div class="biometric-distance-display" id="drawer-bio-dist-val" style="font-size: 1.15rem; margin-bottom: 8px;">-- cm (-- in)</div>
+              <button class="btn btn-primary" id="btn-drawer-bio-lock" style="width: 100%; font-size: 0.76rem; padding: 7px 10px;" disabled>
+                Lock Detected Distance
+              </button>
+              <div style="margin-top: 8px;">
+                <label class="checkbox-row" style="font-size: 0.72rem;">
+                  <input type="checkbox" id="drawer-bio-continuous-toggle" ${calibData.continuousDepthTracking ? 'checked' : ''} />
+                  <span>Continuous Auto-Depth (dynamically updates depth as you lean)</span>
+                </label>
+              </div>
+              <div class="status-note" id="drawer-bio-feedback" style="font-size: 0.72rem; margin-top: 6px;"></div>
+            </div>
+          </div>
+
+          <!-- Manual Mode -->
+          <div class="calib-tab-content ${this.activeDistanceTab === 'manual' ? 'active' : ''}" id="drawer-tab-manual">
+            <div class="slider-row" style="margin-bottom: 4px;">
+              <label>Distance: <span id="drawer-dist-val">${(calibData.viewingDistance * 100).toFixed(0)} cm (${(calibData.viewingDistance * 39.3701).toFixed(1)} in)</span></label>
+              <input type="range" id="drawer-dist-slider" min="30" max="120" step="1" value="${(calibData.viewingDistance * 100).toFixed(0)}" />
+            </div>
+          </div>
         </div>
 
         <!-- Reset Settings to Defaults -->
-        <div class="setting-group" style="margin-top: 10px;">
+        <div class="setting-group" style="margin-top: 14px;">
           <button id="btn-reset-settings" class="btn" style="width: 100%; border: 1px solid rgba(239, 68, 68, 0.4); color: #f87171; background: rgba(239, 68, 68, 0.08); cursor: pointer; padding: 7px 12px; font-size: 0.78rem; transition: background 0.2s;">
             ↺ Reset Settings to Defaults
           </button>
@@ -527,18 +711,35 @@ export class Controls {
       this.closeDrawer();
     });
 
+    // Monitor Presets buttons
     const drawerPresetBtns = this.settingsDrawer.querySelectorAll('.drawer-preset-btn');
     drawerPresetBtns.forEach((btn) => {
       btn.addEventListener('click', (e) => {
         const diag = parseFloat((e.currentTarget as HTMLElement).getAttribute('data-diag') || '0');
         if (diag > 0) {
           this.calibrationManager.setMonitorPreset(diag);
-          drawerPresetBtns.forEach(b => b.classList.remove('active'));
-          (e.currentTarget as HTMLElement).classList.add('active');
+          this.updateDrawerCalibrationReadouts();
         }
       });
     });
 
+    // Screen Dimensions Width Slider
+    const widthSlider = this.settingsDrawer.querySelector('#drawer-width-slider') as HTMLInputElement;
+    widthSlider?.addEventListener('input', (e) => {
+      const valCm = parseFloat((e.target as HTMLInputElement).value);
+      this.calibrationManager.setScreenWidth(valCm / 100);
+      this.updateDrawerCalibrationReadouts();
+    });
+
+    // Screen Dimensions Height Slider
+    const heightSlider = this.settingsDrawer.querySelector('#drawer-height-slider') as HTMLInputElement;
+    heightSlider?.addEventListener('input', (e) => {
+      const valCm = parseFloat((e.target as HTMLInputElement).value);
+      this.calibrationManager.setScreenHeight(valCm / 100);
+      this.updateDrawerCalibrationReadouts();
+    });
+
+    // Set Neutral Center
     this.settingsDrawer.querySelector('#btn-drawer-recalibrate-center')?.addEventListener('click', () => {
       const raw = this.callbacks.getCurrentRawPose ? this.callbacks.getCurrentRawPose() : null;
       if (raw) {
@@ -556,6 +757,7 @@ export class Controls {
       }
     });
 
+    // Reset Neutral Center
     this.settingsDrawer.querySelector('#btn-drawer-reset-center')?.addEventListener('click', () => {
       this.calibrationManager.resetCenterOrigin();
       const feedback = this.settingsDrawer.querySelector('#drawer-center-feedback') as HTMLElement;
@@ -568,27 +770,84 @@ export class Controls {
       }
     });
 
-    this.settingsDrawer.querySelector('#btn-drawer-open-calibration')?.addEventListener('click', () => {
-      this.closeDrawer();
-      this.calibrationPanel.open();
+    // Distance Mode Tabs
+    const tabBtns = this.settingsDrawer.querySelectorAll('.calib-tab-btn');
+    tabBtns.forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const targetTab = (e.currentTarget as HTMLElement).getAttribute('data-tab') as DistanceCalibrationMode;
+        if (targetTab) {
+          this.activeDistanceTab = targetTab;
+          this.calibrationManager.setDistanceMode(targetTab);
+
+          tabBtns.forEach(b => b.classList.remove('active'));
+          (e.currentTarget as HTMLElement).classList.add('active');
+
+          const contents = this.settingsDrawer.querySelectorAll('.calib-tab-content');
+          contents.forEach(c => c.classList.remove('active'));
+          const activeContent = this.settingsDrawer.querySelector(`#drawer-tab-${targetTab}`);
+          activeContent?.classList.add('active');
+
+          if (targetTab === 'biometric') {
+            this.startBiometricPolling();
+          } else {
+            this.stopBiometricPolling();
+          }
+        }
+      });
     });
 
-    // Keep drawer calibration readout synced with live calibration changes
-    this.calibrationManager.subscribe((data) => {
-      const dimEl = this.settingsDrawer.querySelector('#drawer-calib-dim');
-      const distEl = this.settingsDrawer.querySelector('#drawer-calib-dist');
-      if (dimEl) {
-        dimEl.textContent = `${(data.screenWidth * 100).toFixed(1)} × ${(data.screenHeight * 100).toFixed(1)} cm`;
-      }
-      if (distEl) {
-        distEl.textContent = `${(data.viewingDistance * 100).toFixed(0)} cm`;
-      }
-      const diagIn = data.screenDiagonalInches ?? (Math.hypot(data.screenWidth, data.screenHeight) * 39.3701);
-      const btns = this.settingsDrawer.querySelectorAll('.drawer-preset-btn');
-      btns.forEach((btn) => {
-        const d = parseFloat(btn.getAttribute('data-diag') || '0');
-        btn.classList.toggle('active', Math.abs(diagIn - d) < 0.8);
+    // Wireframe Alignment launcher button
+    this.settingsDrawer.querySelector('#btn-drawer-wireframe')?.addEventListener('click', () => {
+      this.closeDrawer();
+      this.calibrationPanel.startWireframeAlignment(() => {
+        this.openDrawer();
+        this.updateDrawerCalibrationReadouts();
+        const feedback = this.settingsDrawer.querySelector('#drawer-wireframe-feedback') as HTMLElement;
+        if (feedback) {
+          feedback.textContent = '✓ Viewing distance calibrated & locked successfully!';
+          feedback.style.display = 'block';
+          setTimeout(() => {
+            if (feedback) feedback.style.display = 'none';
+          }, 3000);
+        }
       });
+    });
+
+    // Biometric lock button
+    this.settingsDrawer.querySelector('#btn-drawer-bio-lock')?.addEventListener('click', () => {
+      if (this.latestBiometricResult && this.latestBiometricResult.confidence > 0.4) {
+        this.calibrationManager.setViewingDistance(this.latestBiometricResult.distanceMeters);
+        this.updateDrawerCalibrationReadouts();
+        const feedback = this.settingsDrawer.querySelector('#drawer-bio-feedback') as HTMLElement;
+        const cmVal = (this.latestBiometricResult.distanceMeters * 100).toFixed(0);
+        const inVal = (this.latestBiometricResult.distanceMeters * 39.3701).toFixed(1);
+        if (feedback) {
+          feedback.textContent = `✓ Biometric distance locked: ${cmVal} cm (${inVal} in)`;
+          feedback.style.display = 'block';
+          setTimeout(() => {
+            if (feedback) feedback.style.display = 'none';
+          }, 3000);
+        }
+      }
+    });
+
+    // Biometric continuous auto-depth toggle
+    const bioContToggle = this.settingsDrawer.querySelector('#drawer-bio-continuous-toggle') as HTMLInputElement;
+    bioContToggle?.addEventListener('change', (e) => {
+      this.calibrationManager.setContinuousDepthTracking((e.target as HTMLInputElement).checked);
+    });
+
+    // Distance manual slider
+    const distSlider = this.settingsDrawer.querySelector('#drawer-dist-slider') as HTMLInputElement;
+    distSlider?.addEventListener('input', (e) => {
+      const valCm = parseFloat((e.target as HTMLInputElement).value);
+      this.calibrationManager.setViewingDistance(valCm / 100);
+      this.updateDrawerCalibrationReadouts();
+    });
+
+    // Subscribe to external calibration updates
+    this.calibrationManager.subscribe(() => {
+      this.updateDrawerCalibrationReadouts();
     });
 
     // Input mode change
@@ -641,6 +900,7 @@ export class Controls {
 
     // Initialize scene-dependent UI elements from persisted settings
     this.setScene(settings.sceneType);
+    this.updateDrawerCalibrationReadouts();
   }
 
   public syncUiFromSettings(settings: AppSettings): void {
@@ -661,5 +921,6 @@ export class Controls {
     this.perspectiveController.setTrackingSmoothnessPercent(smoothnessPct);
 
     this.setDebugHudVisible(settings.debugHudVisible);
+    this.updateDrawerCalibrationReadouts();
   }
 }
