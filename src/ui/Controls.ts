@@ -148,15 +148,11 @@ export class Controls {
         </div>
       </div>
       <div class="topbar-actions">
-        <button class="btn btn-hud" id="btn-feed-fish">Feed Fish 🦐</button>
+        <button class="btn btn-hud btn-icon" id="btn-feed-fish" title="Feed Fish (F)">🦐</button>
         <button class="btn btn-hud btn-icon" id="btn-fullscreen" title="Toggle Fullscreen">⛶</button>
-        <button class="btn btn-hud btn-sm" id="btn-scene-menu" title="Select Virtual 3D Scene">
-          <span style="font-size: 1rem; line-height: 1; display: inline-flex; align-items: center;">🎬</span>
-          <span id="btn-scene-label">Scenes</span>
-          <span class="dropdown-caret" style="font-size: 0.65rem; opacity: 0.7; margin-left: 1px;">▾</span>
-        </button>
-        <button class="btn btn-hud btn-sm" id="btn-calibrate" title="Display Calibration (Window, Depth, Sensitivity)">⚙ <span>Calibrate</span></button>
-        <button class="btn btn-hud btn-sm" id="btn-toggle-settings" title="Settings (Input, Projection, Smoothing, Calibration)">
+        <button class="btn btn-hud btn-icon" id="btn-scene-menu" title="Scenes (Aquarium, Model Viewer, Calibration)">🎬</button>
+        <button class="btn btn-hud btn-icon" id="btn-calibrate" title="Display Calibration (Window, Depth, Sensitivity)">⚙</button>
+        <button class="btn btn-hud btn-icon" id="btn-toggle-settings" title="Configuration & Settings">
           <svg class="btn-svg-icon" viewBox="0 0 24 24">
             <line x1="4" y1="21" x2="4" y2="14"></line>
             <line x1="4" y1="10" x2="4" y2="3"></line>
@@ -168,7 +164,6 @@ export class Controls {
             <line x1="9" y1="8" x2="15" y2="8"></line>
             <line x1="17" y1="16" x2="23" y2="16"></line>
           </svg>
-          <span>Settings</span>
         </button>
       </div>
     `;
@@ -241,27 +236,24 @@ export class Controls {
   private buildScenePopover(): void {
     const currentScene = this.currentSceneType;
 
+    const isAquarium = currentScene === SceneType.Aquarium ? 'selected' : '';
+    const isDiorama = currentScene === SceneType.Diorama ? 'selected' : '';
+    const isDebug = currentScene === SceneType.Debug ? 'selected' : '';
+
     this.scenePopover.innerHTML = `
-      <div class="scene-popover-header">
-        <span class="scene-popover-title">🎬 Virtual 3D Scenes</span>
+      <div class="drawer-header">
+        <h3>🎬 Scenes</h3>
         <button class="close-btn" id="scene-popover-close-btn">&times;</button>
       </div>
-      <div class="scene-popover-list">
-        <button class="scene-card ${currentScene === SceneType.Aquarium ? 'active' : ''}" data-scene="${SceneType.Aquarium}">
-          <span class="scene-card-icon">🐠</span>
-          <span class="scene-card-title">Aquarium</span>
-          <span class="scene-card-check">✓</span>
-        </button>
-        <button class="scene-card ${currentScene === SceneType.Diorama ? 'active' : ''}" data-scene="${SceneType.Diorama}">
-          <span class="scene-card-icon">📦</span>
-          <span class="scene-card-title">Model Viewer</span>
-          <span class="scene-card-check">✓</span>
-        </button>
-        <button class="scene-card ${currentScene === SceneType.Debug ? 'active' : ''}" data-scene="${SceneType.Debug}">
-          <span class="scene-card-icon">📐</span>
-          <span class="scene-card-title">Calibration</span>
-          <span class="scene-card-check">✓</span>
-        </button>
+      <div class="drawer-content">
+        <div class="setting-group">
+          <label for="scene-dropdown-select">Select Scene:</label>
+          <select id="scene-dropdown-select">
+            <option value="${SceneType.Aquarium}" ${isAquarium}>🐠 Aquarium</option>
+            <option value="${SceneType.Diorama}" ${isDiorama}>📦 Model Viewer</option>
+            <option value="${SceneType.Debug}" ${isDebug}>📐 Calibration</option>
+          </select>
+        </div>
       </div>
     `;
 
@@ -269,17 +261,14 @@ export class Controls {
       this.closeScenePopover();
     });
 
-    const cards = this.scenePopover.querySelectorAll('.scene-card');
-    cards.forEach((card) => {
-      card.addEventListener('click', () => {
-        const scene = card.getAttribute('data-scene') as SceneType;
-        if (scene) {
-          this.setScene(scene);
-          this.settingsManager.updateSettings({ sceneType: scene });
-          this.callbacks.onSceneChange(scene);
-          this.closeScenePopover();
-        }
-      });
+    const select = this.scenePopover.querySelector('#scene-dropdown-select') as HTMLSelectElement;
+    select?.addEventListener('change', (e) => {
+      const scene = (e.target as HTMLSelectElement).value as SceneType;
+      if (scene) {
+        this.setScene(scene);
+        this.settingsManager.updateSettings({ sceneType: scene });
+        this.callbacks.onSceneChange(scene);
+      }
     });
   }
 
@@ -372,21 +361,9 @@ export class Controls {
     if (this.feedFishBtn) {
       this.feedFishBtn.style.display = sceneType === SceneType.Aquarium ? '' : 'none';
     }
-    if (this.scenePopover) {
-      const cards = this.scenePopover.querySelectorAll('.scene-card');
-      cards.forEach((card) => {
-        const matches = card.getAttribute('data-scene') === sceneType;
-        card.classList.toggle('active', matches);
-      });
-    }
-    const labelEl = this.topBar.querySelector('#btn-scene-label');
-    if (labelEl) {
-      const sceneNames: Record<SceneType, string> = {
-        [SceneType.Aquarium]: 'Aquarium',
-        [SceneType.Diorama]: 'Model Viewer',
-        [SceneType.Debug]: 'Calibration'
-      };
-      labelEl.textContent = sceneNames[sceneType] ?? 'Scenes';
+    const select = this.scenePopover?.querySelector('#scene-dropdown-select') as HTMLSelectElement;
+    if (select && select.value !== sceneType) {
+      select.value = sceneType;
     }
   }
 

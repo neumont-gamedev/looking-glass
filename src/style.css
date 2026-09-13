@@ -196,6 +196,11 @@ html, body {
   border-radius: 8px;
 }
 
+.btn-icon .btn-svg-icon {
+  width: 17px;
+  height: 17px;
+}
+
 .btn-sm {
   height: 38px;
   padding: 0 12px;
@@ -310,106 +315,27 @@ html, body {
 }
 
 /* ==========================================================================
-   Scene Selector Popover (Top-Right)
+   Scene Window (Top-Right)
    ========================================================================== */
+.scene-window,
 .scene-popover {
   position: absolute;
   top: 72px;
   right: 24px;
-  width: 240px;
+  width: 320px;
   background: var(--bg-surface);
   backdrop-filter: blur(16px);
   border: 1px solid var(--bg-surface-border);
   border-radius: 12px;
-  padding: 14px;
+  padding: 20px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.7);
-  z-index: 22;
-}
-
-.scene-popover-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--bg-surface-border);
-}
-
-.scene-popover-title {
-  font-size: 0.88rem;
-  font-weight: 600;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.scene-popover-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.scene-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 10px 14px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: var(--text-primary);
-  text-align: left;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-family: inherit;
-}
-
-.scene-card:hover {
-  background: rgba(0, 229, 255, 0.08);
-  border-color: rgba(0, 229, 255, 0.4);
-  transform: translateY(-1px);
-}
-
-.scene-card.active {
-  background: rgba(0, 229, 255, 0.12);
-  border-color: var(--accent-cyan);
-  box-shadow: 0 0 12px rgba(0, 229, 255, 0.2);
-}
-
-.scene-card-icon {
-  font-size: 1.35rem;
-  line-height: 1;
-  flex-shrink: 0;
-}
-
-.scene-card-title {
-  flex: 1;
-  font-size: 0.86rem;
-  font-weight: 600;
-  color: #ffffff;
-}
-
-.scene-card.active .scene-card-title {
-  color: var(--accent-cyan);
-}
-
-.scene-card-check {
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: var(--accent-cyan);
-  opacity: 0;
-  margin-left: 6px;
-  flex-shrink: 0;
-  transition: opacity 0.2s;
-}
-
-.scene-card.active .scene-card-check {
-  opacity: 1;
+  z-index: 20;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
 }
 
 @media (max-width: 640px) {
+  .scene-window,
   .scene-popover {
     width: calc(100vw - 32px);
     right: 16px;
