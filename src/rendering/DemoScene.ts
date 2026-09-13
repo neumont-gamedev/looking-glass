@@ -496,19 +496,6 @@ export class DemoScene {
       const zGuideline = new THREE.Line(lineGeo, lineMat);
       this.group.add(zGuideline);
 
-      // 3. For positive-Z spheres popping out of the screen, add a screen plane piercing indicator ring at Z = 0
-      if (config.z > 0) {
-        const pierceGeo = new THREE.RingGeometry(0.003, 0.006, 24);
-        const pierceMat = new THREE.MeshBasicMaterial({
-          color: config.color,
-          side: THREE.DoubleSide,
-          transparent: true,
-          opacity: 0.75
-        });
-        const pierceRing = new THREE.Mesh(pierceGeo, pierceMat);
-        pierceRing.position.set(config.x, config.y, 0);
-        this.group.add(pierceRing);
-      }
 
       // 4. Target projection ring on back wall where guideline lands
       const ringGeo = new THREE.RingGeometry(0.005, 0.009, 24);
