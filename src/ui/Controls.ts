@@ -332,8 +332,8 @@ export class Controls {
           <div class="setting-group setting-color-group">
             <label for="input-ambient-color">Ambient Light Color</label>
             <div class="color-picker-wrapper">
-              <input type="color" id="input-ambient-color" value="#333333">
-              <span id="ambient-color-val" class="color-hex-val">#333333</span>
+              <input type="color" id="input-ambient-color" value="#c8c8c8">
+              <span id="ambient-color-val" class="color-hex-val">#c8c8c8</span>
             </div>
           </div>
 

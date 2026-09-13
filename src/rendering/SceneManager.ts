@@ -24,7 +24,7 @@ export class SceneManager {
   private accentLight1: THREE.PointLight;
   private accentLight2: THREE.PointLight;
 
-  private modelViewerAmbientColor: string = '#333333';
+  private modelViewerAmbientColor: string = '#c8c8c8';
   private modelViewerDirColor: string = '#ffffff';
   private modelViewerLightRotX: number = 10;
   private modelViewerLightRotZ: number = -35;
