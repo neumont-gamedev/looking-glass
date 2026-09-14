@@ -320,6 +320,7 @@ export class Controls {
           <div class="setting-group">
             <label for="scene-select-model">Select 3D Model:</label>
             <select id="scene-select-model">
+              <option value="models/cherub.glb" ${currentModel === 'models/cherub.glb' ? 'selected' : ''}>Cherub</option>
               <option value="models/fish01.glb" ${currentModel === 'models/fish01.glb' ? 'selected' : ''}>Fish 1</option>
               <option value="models/fish02.glb" ${currentModel === 'models/fish02.glb' ? 'selected' : ''}>Fish 2</option>
               <option value="models/fish03.glb" ${currentModel === 'models/fish03.glb' ? 'selected' : ''}>Fish 3</option>
