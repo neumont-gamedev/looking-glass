@@ -2,7 +2,8 @@
  * FaceTracker.ts
  *
  * Manages webcam media stream and MediaPipe FaceLandmarker detection.
- * Fully decoupled from Three.js rendering.
+ * Offloads inference to a dedicated Web Worker to prevent blocking the main
+ * thread, with graceful main-thread fallback. Fully decoupled from Three.js rendering.
  */
 
 import { FilesetResolver, FaceLandmarker } from '@mediapipe/tasks-vision';
@@ -15,9 +16,17 @@ export type TrackingStatusCallback = (status: TrackingStatus, message?: string) 
 export class FaceTracker {
   private video: HTMLVideoElement;
   private faceLandmarker: FaceLandmarker | null = null;
+  private worker: Worker | null = null;
+  private useWorker: boolean = false;
   private isRunning: boolean = false;
   private animationFrameId: number | null = null;
+  private rVfcHandle: number | null = null;
   private lastVideoTime: number = -1;
+
+  // Inference rate limiting & decoupling (target max 30 FPS tracking so rendering has 100% headroom)
+  private isProcessing: boolean = false;
+  private readonly minInferenceIntervalMs: number = 33.3; // 30 FPS
+  private lastInferenceTime: number = 0;
 
   private trackFpsCounter: FpsCounter = new FpsCounter();
   public trackFps: number = 0;
@@ -63,7 +72,7 @@ export class FaceTracker {
   public async startCamera(): Promise<void> {
     if (this.isCameraRunning()) return;
 
-    if (!this.faceLandmarker) {
+    if (!this.worker && !this.faceLandmarker) {
       await this.initialize();
       return;
     }
@@ -88,10 +97,11 @@ export class FaceTracker {
 
   /**
    * Stops the webcam stream and turns off hardware camera indicator LED.
-   * Keeps loaded FaceLandmarker in memory for fast restart.
    */
   public stopCamera(): void {
     this.isRunning = false;
+    this.isProcessing = false;
+
     if (this.rVfcHandle !== null && 'cancelVideoFrameCallback' in this.video) {
       (this.video as any).cancelVideoFrameCallback(this.rVfcHandle);
       this.rVfcHandle = null;
@@ -113,10 +123,11 @@ export class FaceTracker {
   }
 
   /**
-   * Initializes MediaPipe FaceLandmarker and starts webcam capture.
+   * Initializes MediaPipe FaceLandmarker (via Web Worker or main-thread fallback)
+   * and starts webcam capture.
    */
   public async initialize(): Promise<void> {
-    if (this.faceLandmarker) {
+    if (this.worker || this.faceLandmarker) {
       await this.startCamera();
       return;
     }
@@ -124,31 +135,25 @@ export class FaceTracker {
     this.updateStatus(TrackingStatus.Initializing, 'Loading FaceLandmarker model...');
 
     try {
-      // 1. Load MediaPipe Vision WASM files
-      const vision = await FilesetResolver.forVisionTasks(
-        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
-      );
+      // 1. Attempt initializing dedicated Web Worker for background inference
+      let workerReady = false;
+      if (typeof Worker !== 'undefined') {
+        workerReady = await this.initWorker();
+      }
 
-      // 2. Instantiate FaceLandmarker with GPU delegate when available
-      this.faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
-        baseOptions: {
-          modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
-          delegate: 'GPU'
-        },
-        runningMode: 'VIDEO',
-        numFaces: 1,
-        minFaceDetectionConfidence: 0.4,
-        minFacePresenceConfidence: 0.4,
-        minTrackingConfidence: 0.4,
-        outputFaceBlendshapes: false,
-        outputFacialTransformationMatrixes: false
-      });
+      if (!workerReady) {
+        // 2. Fallback to main-thread FaceLandmarker if worker cannot be instantiated
+        await this.initMainThreadModel();
+      }
 
       // 3. Request webcam stream
       await this.startWebcam();
 
       this.isRunning = true;
-      this.updateStatus(TrackingStatus.Active, 'Tracking active');
+      this.updateStatus(
+        TrackingStatus.Active,
+        this.useWorker ? 'Tracking active (Web Worker)' : 'Tracking active'
+      );
       this.startProcessingLoop();
     } catch (err: unknown) {
       const error = err as Error;
@@ -160,6 +165,109 @@ export class FaceTracker {
       }
       throw error;
     }
+  }
+
+  private initWorker(): Promise<boolean> {
+    return new Promise((resolve) => {
+      try {
+        const worker = new Worker(new URL('./FaceTrackerWorker.ts', import.meta.url), { type: 'module' });
+        const timeoutId = setTimeout(() => {
+          console.warn('[FaceTracker] Worker init timeout, will use main-thread fallback');
+          worker.terminate();
+          resolve(false);
+        }, 8000);
+
+        worker.onmessage = (e: MessageEvent) => {
+          const { type, visible, landmarks, timestamp, latencyMs, error } = e.data;
+
+          if (type === 'init_ok') {
+            clearTimeout(timeoutId);
+            this.worker = worker;
+            this.useWorker = true;
+            this.setupWorkerListeners();
+            resolve(true);
+          } else if (type === 'init_error') {
+            clearTimeout(timeoutId);
+            console.warn('[FaceTracker] Worker model init failed:', error);
+            worker.terminate();
+            resolve(false);
+          } else if (type === 'result') {
+            this.handleWorkerResult(visible, landmarks, timestamp, latencyMs);
+          }
+        };
+
+        worker.onerror = (err) => {
+          clearTimeout(timeoutId);
+          console.warn('[FaceTracker] Worker error:', err);
+          worker.terminate();
+          resolve(false);
+        };
+
+        worker.postMessage({ type: 'init', data: { delegate: 'GPU' } });
+      } catch (err) {
+        resolve(false);
+      }
+    });
+  }
+
+  private setupWorkerListeners(): void {
+    if (!this.worker) return;
+
+    this.worker.onmessage = (e: MessageEvent) => {
+      const { type, visible, landmarks, timestamp, latencyMs } = e.data;
+      if (type === 'result') {
+        this.handleWorkerResult(visible, landmarks, timestamp, latencyMs);
+      } else if (type === 'detect_error') {
+        this.isProcessing = false;
+      }
+    };
+
+    this.worker.onerror = (err) => {
+      console.warn('[FaceTracker] Worker runtime error:', err);
+      this.isProcessing = false;
+    };
+  }
+
+  private handleWorkerResult(
+    visible: boolean,
+    landmarks: any[],
+    timestampMs: number,
+    latencyMs: number
+  ): void {
+    this.isProcessing = false;
+    this.inferenceLatencyMs = latencyMs;
+    this.trackFps = this.trackFpsCounter.update();
+
+    if (this.onResultCallback) {
+      this.onResultCallback({
+        visible,
+        confidence: visible ? 1.0 : 0.0,
+        timestamp: timestampMs / 1000,
+        landmarks: landmarks || [],
+        inferenceLatencyMs: latencyMs
+      });
+    }
+  }
+
+  private async initMainThreadModel(): Promise<void> {
+    const vision = await FilesetResolver.forVisionTasks(
+      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
+    );
+
+    this.faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+      baseOptions: {
+        modelAssetPath:
+          'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+        delegate: 'GPU'
+      },
+      runningMode: 'VIDEO',
+      numFaces: 1,
+      minFaceDetectionConfidence: 0.4,
+      minFacePresenceConfidence: 0.4,
+      minTrackingConfidence: 0.4,
+      outputFaceBlendshapes: false,
+      outputFacialTransformationMatrixes: false
+    });
   }
 
   private async startWebcam(): Promise<void> {
@@ -184,9 +292,6 @@ export class FaceTracker {
     });
   }
 
-  private isProcessing: boolean = false;
-  private rVfcHandle: number | null = null;
-
   private startProcessingLoop(): void {
     if ('requestVideoFrameCallback' in this.video) {
       this.rVfcHandle = (this.video as any).requestVideoFrameCallback(this.onVideoFrame);
@@ -195,7 +300,7 @@ export class FaceTracker {
         if (!this.isRunning) return;
         if (this.video.readyState >= 2 && this.video.currentTime !== this.lastVideoTime) {
           this.lastVideoTime = this.video.currentTime;
-          this.processCurrentFrame();
+          this.queueFrameInference(performance.now());
         }
         this.animationFrameId = requestAnimationFrame(loop);
       };
@@ -206,18 +311,61 @@ export class FaceTracker {
   private onVideoFrame = (now: DOMHighResTimeStamp, _metadata?: any): void => {
     if (!this.isRunning) return;
 
-    this.processCurrentFrame(now);
+    this.queueFrameInference(now);
 
     if (this.isRunning && 'requestVideoFrameCallback' in this.video) {
       this.rVfcHandle = (this.video as any).requestVideoFrameCallback(this.onVideoFrame);
     }
   };
 
+  /**
+   * Dispatches a video frame to the worker or main-thread pipeline.
+   * Throttled to 30 FPS to leave ample CPU/GPU budget for 60 FPS Three.js rendering.
+   */
+  private queueFrameInference(now: number): void {
+    if (this.isProcessing || this.video.readyState < 2) return;
+
+    const elapsed = now - this.lastInferenceTime;
+    if (elapsed < this.minInferenceIntervalMs) return;
+
+    this.isProcessing = true;
+    this.lastInferenceTime = now;
+
+    if (this.useWorker && this.worker) {
+      // Offload to Web Worker with zero-copy ImageBitmap
+      createImageBitmap(this.video)
+        .then((bitmap) => {
+          if (this.worker && this.isRunning) {
+            this.worker.postMessage({ type: 'detect', data: { bitmap, timestamp: now } }, [bitmap]);
+          } else {
+            bitmap.close();
+            this.isProcessing = false;
+          }
+        })
+        .catch(() => {
+          this.isProcessing = false;
+        });
+    } else if (this.faceLandmarker) {
+      // Main-thread fallback: defer outside the rendering frame callback
+      setTimeout(() => {
+        if (this.isRunning) {
+          this.processCurrentFrame(now);
+        } else {
+          this.isProcessing = false;
+        }
+      }, 0);
+    } else {
+      this.isProcessing = false;
+    }
+  }
+
   private processCurrentFrame(frameNow?: number): void {
-    if (this.isProcessing || !this.faceLandmarker || this.video.readyState < 2) return;
+    if (!this.faceLandmarker || this.video.readyState < 2) {
+      this.isProcessing = false;
+      return;
+    }
 
     const nowInMs = frameNow ?? performance.now();
-    this.isProcessing = true;
     const startInference = performance.now();
 
     try {
@@ -263,10 +411,15 @@ export class FaceTracker {
   public stop(): void {
     this.stopCamera();
 
+    if (this.worker) {
+      this.worker.terminate();
+      this.worker = null;
+      this.useWorker = false;
+    }
+
     if (this.faceLandmarker) {
       this.faceLandmarker.close();
       this.faceLandmarker = null;
     }
   }
 }
-

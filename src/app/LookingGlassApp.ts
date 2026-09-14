@@ -41,6 +41,11 @@ export class LookingGlassApp {
   private animationFrameId: number | null = null;
   private lastFrameTime: number = performance.now();
 
+  // Fixed timestep simulation state (guarantees constant 60 FPS physics & kinematics)
+  private simAccumulator: number = 0;
+  private simTimeSeconds: number = 0;
+  private lastHudUpdateTime: number = 0;
+
   // Current states
   private currentRawPose: ViewerPose | null = null;
   private currentResult: FaceTrackingResult | null = null;
@@ -391,6 +396,9 @@ export class LookingGlassApp {
     if (this.isRunning) return;
     this.isRunning = true;
     this.lastFrameTime = performance.now();
+    this.simAccumulator = 0;
+    this.simTimeSeconds = performance.now() / 1000;
+    this.lastHudUpdateTime = 0;
 
     const settings = this.settingsManager.getSettings();
     if (settings.inputMode === InputMode.Webcam) {
@@ -419,47 +427,68 @@ export class LookingGlassApp {
     if (!this.isRunning) return;
 
     const now = performance.now();
-    const deltaTimeSeconds = Math.min(0.1, (now - this.lastFrameTime) / 1000);
+    // Clamp maximum frame interval to prevent physics explosion after tab switch or lag
+    const rawDeltaSeconds = Math.min(0.1, (now - this.lastFrameTime) / 1000);
     this.lastFrameTime = now;
-    const timeSec = now / 1000;
+    const realTimeSec = now / 1000;
 
     const fps = this.fpsCounter.update();
 
-    // Handle Auto Demo simulation if active
+    // 1. Handle Auto Demo simulation if active
     if (this.inputMode === InputMode.Auto) {
       const calib = this.calibrationManager.getData();
-      // Gentle figure-8 Lissajous path
-      const autoX = Math.sin(timeSec * 0.9) * 0.22 * calib.sensitivity.x;
-      const autoY = Math.cos(timeSec * 0.6) * 0.12 * calib.sensitivity.y;
-      const autoZ = calib.viewingDistance + Math.sin(timeSec * 0.4) * 0.12 * calib.sensitivity.z;
+      const autoX = Math.sin(realTimeSec * 0.9) * 0.22 * calib.sensitivity.x;
+      const autoY = Math.cos(realTimeSec * 0.6) * 0.12 * calib.sensitivity.y;
+      const autoZ = calib.viewingDistance + Math.sin(realTimeSec * 0.4) * 0.12 * calib.sensitivity.z;
 
       this.currentRawPose = {
         x: autoX,
         y: autoY,
         z: autoZ,
         confidence: 1.0,
-        timestamp: timeSec
+        timestamp: realTimeSec
       };
       this.perspectiveController.setSimulatedTarget(autoX, autoY, autoZ);
     }
 
-    // 1. Update perspective camera interpolation
-    this.perspectiveController.update(deltaTimeSeconds, timeSec);
-    const currentPose = this.perspectiveController.getCurrentPose();
+    // 2. Fixed Timestep Simulation Update (Guarantees constant 60 FPS physics & kinematics)
+    this.simAccumulator += rawDeltaSeconds;
+    const FIXED_SIM_STEP = 1 / 60; // 60 Hz = 16.667ms
+    const MAX_SUBSTEPS = 3; // Prevent spiral of death
+    let substeps = 0;
 
-    // Update Top-Left Debug Information HUD
-    this.controls.updateDebugHud({
-      fps,
-      trackFps: this.faceTracker.trackFps,
-      latencyMs: this.faceTracker.inferenceLatencyMs,
-      poseX: currentPose.x,
-      poseY: currentPose.y,
-      poseZ: currentPose.z,
-      isTrackingActive: this.currentResult?.visible ?? false
-    });
+    while (this.simAccumulator >= FIXED_SIM_STEP && substeps < MAX_SUBSTEPS) {
+      this.simTimeSeconds += FIXED_SIM_STEP;
 
-    // 2. Update active scene animations (aquarium boids, kelp, bubbles, or diorama)
-    this.sceneManager.update(deltaTimeSeconds, timeSec);
+      // Update camera perspective smoothing & kinematic predictor with fixed step
+      this.perspectiveController.update(FIXED_SIM_STEP, this.simTimeSeconds);
+
+      // Update 3D scene simulation (aquarium boids, fish swimming, bubbles, plants sway, diorama)
+      this.sceneManager.update(FIXED_SIM_STEP, this.simTimeSeconds);
+
+      this.simAccumulator -= FIXED_SIM_STEP;
+      substeps++;
+    }
+
+    if (substeps >= MAX_SUBSTEPS) {
+      // Discard backlog if system fell behind
+      this.simAccumulator = 0;
+    }
+
+    // 3. Update Top-Left Debug Information HUD (throttled to 10 Hz to prevent DOM reflows)
+    if (now - this.lastHudUpdateTime >= 100) {
+      this.lastHudUpdateTime = now;
+      const currentPose = this.perspectiveController.getCurrentPose();
+      this.controls.updateDebugHud({
+        fps,
+        trackFps: this.faceTracker.trackFps,
+        latencyMs: this.faceTracker.inferenceLatencyMs,
+        poseX: currentPose.x,
+        poseY: currentPose.y,
+        poseZ: currentPose.z,
+        isTrackingActive: this.currentResult?.visible ?? false
+      });
+    }
 
     // Update wireframe visual feedback if calibration mode is active
     if (this.sceneManager.wireframeCalibration.getVisible()) {
