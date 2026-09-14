@@ -35,31 +35,20 @@ function getAvailableTextures(): { url: string; label: string }[] {
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
       .join(' ');
 
-    let emoji = '🖼️ ';
-    const lower = cleanName.toLowerCase();
-    if (lower.includes('orange')) emoji = '🟧 ';
-    else if (lower.includes('red')) emoji = '🟥 ';
-    else if (lower.includes('blue') || lower.includes('cyan')) emoji = '🟦 ';
-    else if (lower.includes('gray') || lower.includes('grey')) emoji = '⬜ ';
-    else if (lower.includes('green')) emoji = '🟩 ';
-    else if (lower.includes('purple')) emoji = '🟪 ';
-    else if (lower.includes('metric')) emoji = '📐 ';
-    else if (lower.includes('dark') || lower.includes('black')) emoji = '⬛ ';
-
     entries.push({
       url: `textures/${filename}`,
-      label: `${emoji}${cleanName}`
+      label: cleanName
     });
   }
 
   // Fallback to the exact files present in public/textures if glob is empty in bundling
   if (entries.length === 0) {
     return [
-      { url: 'textures/orange_grid.png', label: '🟧 Orange Grid' },
-      { url: 'textures/red_grid.png', label: '🟥 Red Grid' },
-      { url: 'textures/blue_grid.png', label: '🟦 Blue Grid' },
-      { url: 'textures/gray_grid.png', label: '⬜ Gray Grid' },
-      { url: 'textures/green_grid.png', label: '🟩 Green Grid' }
+      { url: 'textures/orange_grid.png', label: 'Orange Grid' },
+      { url: 'textures/red_grid.png', label: 'Red Grid' },
+      { url: 'textures/blue_grid.png', label: 'Blue Grid' },
+      { url: 'textures/gray_grid.png', label: 'Gray Grid' },
+      { url: 'textures/green_grid.png', label: 'Green Grid' }
     ];
   }
 
@@ -217,10 +206,16 @@ export class Controls {
         </div>
       </div>
       <div class="topbar-actions">
-        <button class="btn btn-hud btn-icon" id="btn-feed-fish" title="Feed Fish (F)">🦐</button>
-        <button class="btn btn-hud btn-icon" id="btn-fullscreen" title="Toggle Fullscreen">⛶</button>
-        <button class="btn btn-hud btn-icon" id="btn-scene-menu" title="Scenes (Aquarium, Model Viewer, Calibration)">🎬</button>
-        <button class="btn btn-hud btn-icon" id="btn-toggle-settings" title="Settings & Calibration (S)">⚙</button>
+        <button class="btn btn-hud btn-sm" id="btn-feed-fish" title="Feed Fish (F)">Feed Fish</button>
+        <button class="btn btn-hud btn-icon" id="btn-fullscreen" title="Toggle Fullscreen">
+          <svg class="btn-svg-icon" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+        </button>
+        <button class="btn btn-hud btn-icon" id="btn-scene-menu" title="Scenes (Aquarium, Model Viewer, Calibration)">
+          <svg class="btn-svg-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+        </button>
+        <button class="btn btn-hud btn-icon" id="btn-toggle-settings" title="Settings & Calibration (S)">
+          <svg class="btn-svg-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
       </div>
     `;
 
@@ -304,29 +299,29 @@ export class Controls {
 
     this.scenePopover.innerHTML = `
       <div class="drawer-header">
-        <h3>🎬 Scenes</h3>
+        <h3>Scenes</h3>
         <button class="close-btn" id="scene-popover-close-btn">&times;</button>
       </div>
       <div class="drawer-content">
         <div class="setting-group">
           <label for="scene-dropdown-select">Select Scene:</label>
           <select id="scene-dropdown-select">
-            <option value="${SceneType.Aquarium}" ${isAquarium}>🐠 Aquarium</option>
-            <option value="${SceneType.Diorama}" ${isDiorama}>📦 Model Viewer</option>
-            <option value="${SceneType.Debug}" ${isDebug}>📐 Calibration</option>
+            <option value="${SceneType.Aquarium}" ${isAquarium}>Aquarium</option>
+            <option value="${SceneType.Diorama}" ${isDiorama}>Model Viewer</option>
+            <option value="${SceneType.Debug}" ${isDebug}>Calibration</option>
           </select>
         </div>
 
         <div id="scene-model-viewer-options" style="display: ${currentScene === SceneType.Diorama ? 'block' : 'none'};">
-          <div class="settings-subsection-title">📦 Model & Texture</div>
+          <div class="settings-subsection-title">Model & Texture</div>
 
           <div class="setting-group">
             <label for="scene-select-model">Select 3D Model:</label>
             <select id="scene-select-model">
-              <option value="models/fish01.glb">🐠 Fish 1</option>
-              <option value="models/fish02.glb">🐡 Fish 2</option>
-              <option value="models/log.glb">🪵 Log</option>
-              <option value="models/plant01.glb">🌿 Plant</option>
+              <option value="models/fish01.glb">Fish 1</option>
+              <option value="models/fish02.glb">Fish 2</option>
+              <option value="models/log.glb">Log</option>
+              <option value="models/plant01.glb">Plant</option>
             </select>
           </div>
 
@@ -368,18 +363,7 @@ export class Controls {
             </select>
           </div>
 
-          <div class="setting-group">
-            <label>Color Shortcuts:</label>
-            <div class="tint-presets-row" id="wall-texture-presets">
-              <button type="button" class="tint-preset-btn ${currentTexture.includes('orange') ? 'active' : ''}" data-texture="textures/orange_grid.png" title="Orange Grid">🟧 Orange</button>
-              <button type="button" class="tint-preset-btn ${currentTexture.includes('red') ? 'active' : ''}" data-texture="textures/red_grid.png" title="Red Grid">🟥 Red</button>
-              <button type="button" class="tint-preset-btn ${currentTexture.includes('blue') ? 'active' : ''}" data-texture="textures/blue_grid.png" title="Blue Grid">🟦 Blue</button>
-              <button type="button" class="tint-preset-btn ${currentTexture.includes('gray') ? 'active' : ''}" data-texture="textures/gray_grid.png" title="Gray Grid">⬜ Gray</button>
-              <button type="button" class="tint-preset-btn ${currentTexture.includes('green') ? 'active' : ''}" data-texture="textures/green_grid.png" title="Green Grid">🟩 Green</button>
-            </div>
-          </div>
-
-          <div class="settings-subsection-title">💡 Model Viewer Lighting</div>
+          <div class="settings-subsection-title">Model Viewer Lighting</div>
 
           <div class="setting-group setting-color-group">
             <label for="input-ambient-color">Ambient Light Color</label>
@@ -496,37 +480,11 @@ export class Controls {
     });
 
     const textureSelect = this.scenePopover.querySelector('#scene-select-texture') as HTMLSelectElement;
-    const texturePresetBtns = this.scenePopover.querySelectorAll<HTMLButtonElement>('.tint-preset-btn');
-
-    const setActiveTexture = (url: string) => {
-      if (textureSelect) textureSelect.value = url;
-      texturePresetBtns.forEach((btn) => {
-        const btnTex = btn.dataset.texture;
-        if (btnTex === url) {
-          btn.classList.add('active');
-        } else {
-          btn.classList.remove('active');
-        }
-      });
-      if (this.callbacks.onTextureChange) {
-        this.callbacks.onTextureChange(url);
-      }
-    };
-
     textureSelect?.addEventListener('change', (e) => {
       const url = (e.target as HTMLSelectElement).value;
-      if (url) {
-        setActiveTexture(url);
+      if (url && this.callbacks.onTextureChange) {
+        this.callbacks.onTextureChange(url);
       }
-    });
-
-    texturePresetBtns.forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const tex = btn.dataset.texture;
-        if (tex) {
-          setActiveTexture(tex);
-        }
-      });
     });
 
     const ambientInput = this.scenePopover.querySelector('#input-ambient-color') as HTMLInputElement;
@@ -868,7 +826,7 @@ export class Controls {
 
     this.settingsDrawer.innerHTML = `
       <div class="drawer-header">
-        <h3>⚙ Settings & Calibration</h3>
+        <h3>Settings & Calibration</h3>
         <button class="close-btn" id="drawer-close-btn">&times;</button>
       </div>
       <div class="drawer-content">
@@ -876,9 +834,9 @@ export class Controls {
         <div class="setting-group">
           <label for="input-mode-select">Input Control Source:</label>
           <select id="input-mode-select">
-            <option value="${InputMode.Webcam}" ${isWebcamSelected}>📷 Webcam Head Tracking</option>
-            <option value="${InputMode.Mouse}" ${isMouseSelected}>🖱️ Mouse Simulation Mode</option>
-            <option value="${InputMode.Auto}" ${isAutoSelected}>🔄 Auto Demo Orbit Mode</option>
+            <option value="${InputMode.Webcam}" ${isWebcamSelected}>Webcam Head Tracking</option>
+            <option value="${InputMode.Mouse}" ${isMouseSelected}>Mouse Simulation Mode</option>
+            <option value="${InputMode.Auto}" ${isAutoSelected}>Auto Demo Orbit Mode</option>
           </select>
         </div>
 
@@ -899,9 +857,9 @@ export class Controls {
             <input type="range" id="slider-tracking-smoothness" min="0" max="100" step="5" value="${settings.trackingSmoothnessPercent ?? 50}" />
           </div>
           <div style="display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--text-secondary); margin-top: 2px;">
-            <span>⚡ Snappy</span>
+            <span>Snappy</span>
             <span>Balanced</span>
-            <span>Smooth 🛡️</span>
+            <span>Smooth</span>
           </div>
         </div>
 
@@ -936,7 +894,7 @@ export class Controls {
           <p style="font-size: 0.74rem; color: var(--text-secondary); margin-bottom: 8px;">Sit centered in front of your display and look directly at the center of the screen:</p>
           <div style="display: flex; gap: 6px;">
             <button id="btn-drawer-recalibrate-center" class="btn" style="flex: 1; border: 1px solid rgba(0, 229, 255, 0.4); color: var(--accent-cyan); background: rgba(0, 229, 255, 0.08); cursor: pointer; padding: 7px 10px; font-size: 0.76rem; transition: background 0.2s;">
-              🎯 Set Center Position
+              Set Center Position
             </button>
             <button id="btn-drawer-reset-center" class="btn" style="border: 1px solid rgba(255, 255, 255, 0.15); color: var(--text-secondary); background: rgba(255, 255, 255, 0.05); cursor: pointer; padding: 7px 10px; font-size: 0.76rem; transition: background 0.2s;" title="Reset Center to (0, 0)">
               ↺ (0, 0)
@@ -950,13 +908,13 @@ export class Controls {
           <h4>Viewing Distance</h4>
           <div class="calib-tabs" style="margin-bottom: 10px;">
             <button type="button" class="calib-tab-btn ${this.activeDistanceTab === 'wireframe' ? 'active' : ''}" data-tab="wireframe">
-              📐 Wireframe
+              Wireframe
             </button>
             <button type="button" class="calib-tab-btn ${this.activeDistanceTab === 'biometric' ? 'active' : ''}" data-tab="biometric">
-              👁️ Biometric
+              Biometric
             </button>
             <button type="button" class="calib-tab-btn ${this.activeDistanceTab === 'manual' ? 'active' : ''}" data-tab="manual">
-              📏 Manual
+              Manual
             </button>
           </div>
 
@@ -1016,7 +974,7 @@ export class Controls {
 
         <!-- Privacy notice as specified in AGENTS.md -->
         <div class="privacy-notice">
-          <small>🛡️ <strong>Privacy:</strong> Camera images are processed locally in your browser and are not uploaded or recorded.</small>
+          <small><strong>Privacy:</strong> Camera images are processed locally in your browser and are not uploaded or recorded.</small>
         </div>
       </div>
     `;

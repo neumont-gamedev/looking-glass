@@ -96,7 +96,7 @@ export class CalibrationPanel {
 
     this.wireframeHud.innerHTML = `
       <div class="hud-left">
-        <span class="hud-badge">📐 Wireframe Perspective Alignment</span>
+        <span class="hud-badge">Wireframe Perspective Alignment</span>
         <span class="hud-instructions" id="wireframe-hud-instructions">Sit centered. Adjust distance until the 3D green box aligns with the amber corner brackets.</span>
       </div>
       <div class="hud-center">
