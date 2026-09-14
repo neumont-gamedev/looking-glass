@@ -66,9 +66,7 @@ Unlike traditional orbit cameras that rotate around a focal point, Looking Glass
    - Focused inspection mode for individual 3D assets.
    - Calibrated metric grid textures displaying **1cm unit squares**, **5×5 subdivision blocks**, and **10cm high-contrast major lines**.
    - Multiple selectable grid themes (Orange, Red, Blue, Gray, Green).
-3. **Diorama Shadow Box**:
-   - Architectural shadow box with dynamic lighting, casting shadows, reflective floating crystal polyhedra, and parallax particles.
-4. **Calibration & Debug**:
+3. **Calibration & Debug**:
    - 3D XYZ metric axes, ground coordinate plane, and depth markers.
    - Real-time performance HUD showing render FPS, tracking FPS, worker inference latency, and viewer coordinates ($X, Y, Z$).
 
