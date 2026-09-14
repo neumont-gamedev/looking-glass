@@ -9,7 +9,6 @@
 [![MediaPipe](https://img.shields.io/badge/MediaPipe-00A98F?style=for-the-badge&logo=google&logoColor=white)](https://developers.google.com/mediapipe)
 
 🌐 **Live Application:** [**https://looking-glass.web.app/**](https://looking-glass.web.app/)  
-*(Alternative mirror: [https://neumont-looking-glass.web.app/](https://neumont-looking-glass.web.app/))*
 
 ---
 
