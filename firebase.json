@@ -1,83 +1,166 @@
 {
-  "hosting": {
-    "public": "dist",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ],
-    "cleanUrls": true,
-    "trailingSlash": false,
-    "rewrites": [
-      {
-        "source": "**",
-        "destination": "/index.html"
-      }
-    ],
-    "headers": [
-      {
-        "source": "**/*.@(jpg|jpeg|gif|png|svg|webp|js|css|woff|woff2|ttf|eot)",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "max-age=31536000, immutable"
-          }
-        ]
-      },
-      {
-        "source": "textures/**",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-cache, no-store, must-revalidate"
-          }
-        ]
-      },
-      {
-        "source": "**/*.@(glb|gltf|bin)",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "max-age=31536000, immutable"
-          },
-          {
-            "key": "Content-Type",
-            "value": "model/gltf-binary"
-          }
-        ]
-      },
-      {
-        "source": "**/*.@(wasm)",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "max-age=31536000, immutable"
-          },
-          {
-            "key": "Content-Type",
-            "value": "application/wasm"
-          }
-        ]
-      },
-      {
-        "source": "**",
-        "headers": [
-          {
-            "key": "Permissions-Policy",
-            "value": "camera=(self)"
-          }
-        ]
-      },
-      {
-        "source": "index.html",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-cache, no-store, must-revalidate"
-          }
-        ]
-      }
-    ]
-  }
+  "hosting": [
+    {
+      "site": "looking-glass",
+      "public": "dist",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "cleanUrls": true,
+      "trailingSlash": false,
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ],
+      "headers": [
+        {
+          "source": "**/*.@(jpg|jpeg|gif|png|svg|webp|js|css|woff|woff2|ttf|eot)",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "max-age=31536000, immutable"
+            }
+          ]
+        },
+        {
+          "source": "textures/**",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache, no-store, must-revalidate"
+            }
+          ]
+        },
+        {
+          "source": "**/*.@(glb|gltf|bin)",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "max-age=31536000, immutable"
+            },
+            {
+              "key": "Content-Type",
+              "value": "model/gltf-binary"
+            }
+          ]
+        },
+        {
+          "source": "**/*.@(wasm)",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "max-age=31536000, immutable"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/wasm"
+            }
+          ]
+        },
+        {
+          "source": "**",
+          "headers": [
+            {
+              "key": "Permissions-Policy",
+              "value": "camera=(self)"
+            }
+          ]
+        },
+        {
+          "source": "index.html",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache, no-store, must-revalidate"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "site": "neumont-looking-glass",
+      "public": "dist",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "cleanUrls": true,
+      "trailingSlash": false,
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ],
+      "headers": [
+        {
+          "source": "**/*.@(jpg|jpeg|gif|png|svg|webp|js|css|woff|woff2|ttf|eot)",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "max-age=31536000, immutable"
+            }
+          ]
+        },
+        {
+          "source": "textures/**",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache, no-store, must-revalidate"
+            }
+          ]
+        },
+        {
+          "source": "**/*.@(glb|gltf|bin)",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "max-age=31536000, immutable"
+            },
+            {
+              "key": "Content-Type",
+              "value": "model/gltf-binary"
+            }
+          ]
+        },
+        {
+          "source": "**/*.@(wasm)",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "max-age=31536000, immutable"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/wasm"
+            }
+          ]
+        },
+        {
+          "source": "**",
+          "headers": [
+            {
+              "key": "Permissions-Policy",
+              "value": "camera=(self)"
+            }
+          ]
+        },
+        {
+          "source": "index.html",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache, no-store, must-revalidate"
+            }
+          ]
+        }
+      ]
+    }
+  ]
 }
-
