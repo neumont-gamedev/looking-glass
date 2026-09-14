@@ -129,6 +129,9 @@ export class LookingGlassApp {
         onModelChange: (modelUrl: string) => {
           this.sceneManager.demoScene.setModel(modelUrl);
         },
+        getModel: () => {
+          return this.sceneManager.demoScene.getModel();
+        },
         onTextureChange: (textureUrl: string) => {
           this.sceneManager.demoScene.setWallTexture(textureUrl);
         },

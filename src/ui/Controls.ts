@@ -76,6 +76,7 @@ export interface ControlsCallbacks {
   getCurrentRawPose?: () => ViewerPose | null;
   getBiometricDistance?: () => BiometricDistanceResult | null;
   onModelChange?: (modelUrl: string) => void;
+  getModel?: () => string;
   onTextureChange?: (textureUrl: string) => void;
   getWallTexture?: () => string;
   onWallColorChange?: (colorHex: string) => void;
@@ -289,6 +290,7 @@ export class Controls {
     const isDebug = currentScene === SceneType.Debug ? 'selected' : '';
 
     const currentTexture = this.callbacks.getWallTexture ? this.callbacks.getWallTexture() : 'textures/orange_grid.png';
+    const currentModel = this.callbacks.getModel ? this.callbacks.getModel() : 'models/fish01.glb';
     const availableTextures = getAvailableTextures();
     const textureOptionsHtml = availableTextures
       .map((t) => {
@@ -318,10 +320,12 @@ export class Controls {
           <div class="setting-group">
             <label for="scene-select-model">Select 3D Model:</label>
             <select id="scene-select-model">
-              <option value="models/fish01.glb">Fish 1</option>
-              <option value="models/fish02.glb">Fish 2</option>
-              <option value="models/log.glb">Log</option>
-              <option value="models/plant01.glb">Plant</option>
+              <option value="models/fish01.glb" ${currentModel === 'models/fish01.glb' ? 'selected' : ''}>Fish 1</option>
+              <option value="models/fish02.glb" ${currentModel === 'models/fish02.glb' ? 'selected' : ''}>Fish 2</option>
+              <option value="models/fish03.glb" ${currentModel === 'models/fish03.glb' ? 'selected' : ''}>Fish 3</option>
+              <option value="models/log.glb" ${currentModel === 'models/log.glb' ? 'selected' : ''}>Log</option>
+              <option value="models/plant01.glb" ${currentModel === 'models/plant01.glb' ? 'selected' : ''}>Plant 1</option>
+              <option value="models/plant02.glb" ${currentModel === 'models/plant02.glb' ? 'selected' : ''}>Plant 2</option>
             </select>
           </div>
 

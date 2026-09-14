@@ -16,9 +16,10 @@ import { AquariumInteractions } from './AquariumInteractions';
 import { CustomModelLoader, CustomFishOptions, CustomDecorationOptions } from './CustomModelLoader';
 import { CausticEffect } from './CausticEffect';
 
-interface SeaweedStem {
-  mesh: THREE.Mesh;
-  initialPositions: Float32Array;
+interface PlantDecoration {
+  group: THREE.Group;
+  initialRotationZ: number;
+  initialRotationX: number;
   phase: number;
   speed: number;
 }
@@ -37,7 +38,7 @@ export class AquariumScene {
   private bubbles: THREE.Points | null = null;
   private bubbleVelocities: Float32Array | null = null;
   private bubbleCount: number = 180;
-  private seaweedStems: SeaweedStem[] = [];
+  private plantDecorations: PlantDecoration[] = [];
   private customDecorations: THREE.Group[] = [];
 
   constructor(screen: ScreenGeometry) {
@@ -76,7 +77,7 @@ export class AquariumScene {
   }
 
   private clearEnvironment(): void {
-    // Clean up bubbles and seaweed
+    // Clean up bubbles
     if (this.bubbles) {
       this.group.remove(this.bubbles);
       this.bubbles.geometry.dispose();
@@ -84,12 +85,7 @@ export class AquariumScene {
       this.bubbles = null;
     }
 
-    this.seaweedStems.forEach((s) => {
-      this.group.remove(s.mesh);
-      s.mesh.geometry.dispose();
-      (s.mesh.material as THREE.Material).dispose();
-    });
-    this.seaweedStems = [];
+    this.plantDecorations = [];
 
     // Clean up custom decorations
     for (const deco of this.customDecorations) {
@@ -212,8 +208,8 @@ export class AquariumScene {
     // 5. Sunken Driftwood Log (models/log.glb)
     this.buildLog(W, H, D);
 
-    // 6. Swaying Kelp / Seaweed Stems
-    this.buildSeaweed(W, H, D);
+    // 6. Lush Aquatic 3D Plants (models/plant01.glb & models/plant02.glb)
+    this.buildPlants(W, H, D);
 
     // 7. Micro-bubbles Particle System
     this.buildBubbles(W, H, D);
@@ -300,48 +296,52 @@ export class AquariumScene {
       });
   }
 
-  private buildSeaweed(W: number, H: number, D: number): void {
-    const seaweedMat = new THREE.MeshStandardMaterial({
-      color: 0x1f7a3a,
-      emissive: 0x072810,
-      roughness: 0.5,
-      side: THREE.DoubleSide
-    });
+  private buildPlants(W: number, H: number, _D: number): void {
+    Promise.all([
+      this.customModelLoader.loadGLTF('/models/plant01.glb'),
+      this.customModelLoader.loadGLTF('/models/plant02.glb')
+    ])
+      .then(([templatePlant01, templatePlant02]) => {
+        // Natural distributed placement of custom 3D plants across seabed
+        const plantConfigs = [
+          // Left cluster around and behind rock 1
+          { template: templatePlant01, x: -W * 0.30, z: -0.42, scale: 0.17, rotY: 0.5 },
+          { template: templatePlant02, x: -W * 0.23, z: -0.46, scale: 0.15, rotY: 2.1 },
+          { template: templatePlant01, x: -W * 0.36, z: -0.54, scale: 0.14, rotY: 1.2 },
+          { template: templatePlant02, x: -W * 0.28, z: -0.62, scale: 0.20, rotY: 3.7 },
 
-    const spawnKelp = (x: number, z: number, height: number, phase: number) => {
-      const segments = 8;
-      // Slender natural 3.5mm blade width
-      const geo = new THREE.PlaneGeometry(0.0035, height, 1, segments);
-      geo.translate(0, height / 2, 0);
+          // Right cluster behind and beside log and rock 2
+          { template: templatePlant02, x: W * 0.28, z: -0.43, scale: 0.18, rotY: 4.2 },
+          { template: templatePlant01, x: W * 0.20, z: -0.55, scale: 0.15, rotY: 0.8 },
+          { template: templatePlant01, x: W * 0.36, z: -0.50, scale: 0.18, rotY: 2.7 },
+          { template: templatePlant02, x: W * 0.32, z: -0.64, scale: 0.16, rotY: 5.1 },
 
-      const posAttr = geo.attributes.position;
-      const initialPos = new Float32Array(posAttr.array);
+          // Deep midground framing distant reef arch
+          { template: templatePlant01, x: -W * 0.09, z: -0.67, scale: 0.13, rotY: 1.6 },
+          { template: templatePlant02, x: W * 0.09, z: -0.69, scale: 0.14, rotY: 3.4 }
+        ];
 
-      const mesh = new THREE.Mesh(geo, seaweedMat);
-      mesh.position.set(x, -H / 2, z);
-      mesh.castShadow = true;
-      this.group.add(mesh);
+        for (const cfg of plantConfigs) {
+          const plantGroup = this.customModelLoader.instantiateDecoration(cfg.template, {
+            targetScale: cfg.scale,
+            position: new THREE.Vector3(cfg.x, -H / 2, cfg.z),
+            rotation: new THREE.Euler(0, cfg.rotY, 0)
+          });
+          this.customDecorations.push(plantGroup);
+          this.group.add(plantGroup);
 
-      this.seaweedStems.push({
-        mesh,
-        initialPositions: initialPos,
-        phase,
-        speed: 1.4 + Math.random() * 0.4
+          this.plantDecorations.push({
+            group: plantGroup,
+            initialRotationZ: 0,
+            initialRotationX: 0,
+            phase: Math.random() * Math.PI * 2,
+            speed: 1.0 + Math.random() * 0.5
+          });
+        }
+      })
+      .catch((err) => {
+        console.warn('[AquariumScene] plant models load error:', err);
       });
-    };
-
-    // Plant slender kelp stems along background corners
-    for (let i = 0; i < 9; i++) {
-      const x = -W * 0.38 + (Math.random() - 0.5) * 0.06;
-      const z = -0.35 - Math.random() * (D * 0.5);
-      spawnKelp(x, z, H * (0.22 + Math.random() * 0.22), i * 0.7);
-    }
-
-    for (let i = 0; i < 8; i++) {
-      const x = W * 0.35 + (Math.random() - 0.5) * 0.06;
-      const z = -0.40 - Math.random() * (D * 0.45);
-      spawnKelp(x, z, H * (0.24 + Math.random() * 0.20), i * 0.8);
-    }
   }
 
   private buildBubbles(W: number, H: number, D: number): void {
@@ -376,8 +376,8 @@ export class AquariumScene {
     const H = this.screen.height;
     const D = this.depth;
 
-    // Helper to spawn a fish inside tank bounds
-    const spawn = (species: FishSpecies, scale: number, maxSpeed: number, maxForce: number) => {
+    // Helper to spawn a fallback fish inside tank bounds if model loading fails
+    const spawnFallback = (species: FishSpecies, scale: number, maxSpeed: number, maxForce: number) => {
       const pos = new THREE.Vector3(
         (Math.random() - 0.5) * (W * 0.75),
         (Math.random() - 0.5) * (H * 0.65),
@@ -388,106 +388,87 @@ export class AquariumScene {
       this.group.add(fish.group);
     };
 
-    // 1. School of Clownfish (6 fish)
-    for (let i = 0; i < 6; i++) {
-      spawn(FishSpecies.Clownfish, 1.0, 0.14, 0.35);
-    }
+    // Helper to spawn custom 3D fish from loaded template
+    const spawnCustomFishGroup = (
+      template: any,
+      count: number,
+      targetLength: number,
+      forwardAxis: '+X' | '-X' | '+Z' | '-Z',
+      maxSpeed: number,
+      maxForce: number
+    ) => {
+      for (let i = 0; i < count; i++) {
+        const instantiated = this.customModelLoader.instantiateFish(template, {
+          targetLength,
+          forwardAxis
+        });
+        const pos = new THREE.Vector3(
+          (Math.random() - 0.5) * (W * 0.75),
+          (Math.random() - 0.5) * (H * 0.65),
+          -0.18 - Math.random() * (D * 0.65)
+        );
+        const fish = new Fish(
+          {
+            species: FishSpecies.Custom,
+            scale: 1.0,
+            maxSpeed,
+            maxForce,
+            customModelRoot: instantiated.root,
+            animationMixer: instantiated.mixer,
+            forwardVector: instantiated.forwardVector
+          },
+          pos
+        );
+        this.boids.addFish(fish);
+        this.group.add(fish.group);
+      }
+    };
 
-    // 2. Custom 3D Fish Species 2 (models/fish02.glb - 4 fish)
-    this.customModelLoader
-      .loadGLTF('/models/fish02.glb')
-      .then((template) => {
-        for (let i = 0; i < 4; i++) {
-          const instantiated = this.customModelLoader.instantiateFish(template, {
-            targetLength: 0.058, // ~5.8cm length
-            forwardAxis: '-X' // fish02.glb head points along -X
-          });
-          const pos = new THREE.Vector3(
-            (Math.random() - 0.5) * (W * 0.75),
-            (Math.random() - 0.5) * (H * 0.65),
-            -0.18 - Math.random() * (D * 0.65)
-          );
-          const fish = new Fish(
-            {
-              species: FishSpecies.Custom,
-              scale: 1.0,
-              maxSpeed: 0.16,
-              maxForce: 0.40,
-              customModelRoot: instantiated.root,
-              animationMixer: instantiated.mixer,
-              forwardVector: instantiated.forwardVector
-            },
-            pos
-          );
-          this.boids.addFish(fish);
-          this.group.add(fish.group);
-        }
-      })
-      .catch((err) => {
-        console.warn('[AquariumScene] fish02.glb load fallback:', err);
-        for (let i = 0; i < 4; i++) {
-          spawn(FishSpecies.BlueTang, 1.15, 0.16, 0.4);
-        }
-      });
-
-    // 3. Custom 3D Fish (models/fish01.glb - 4 fish)
+    // 1. Custom 3D Fish 1 (models/fish01.glb - 5 fish)
     this.customModelLoader
       .loadGLTF('/models/fish01.glb')
       .then((template) => {
-        for (let i = 0; i < 4; i++) {
-          const instantiated = this.customModelLoader.instantiateFish(template, {
-            targetLength: 0.055, // ~5.5cm length
-            forwardAxis: '-X' // fish01.glb head points along -X
-          });
-          const pos = new THREE.Vector3(
-            (Math.random() - 0.5) * (W * 0.75),
-            (Math.random() - 0.5) * (H * 0.65),
-            -0.18 - Math.random() * (D * 0.65)
-          );
-          const fish = new Fish(
-            {
-              species: FishSpecies.Custom,
-              scale: 1.0,
-              maxSpeed: 0.15,
-              maxForce: 0.38,
-              customModelRoot: instantiated.root,
-              animationMixer: instantiated.mixer,
-              forwardVector: instantiated.forwardVector
-            },
-            pos
-          );
-          this.boids.addFish(fish);
-          this.group.add(fish.group);
-        }
+        spawnCustomFishGroup(template, 5, 0.055, '-X', 0.15, 0.38);
       })
       .catch((err) => {
         console.warn('[AquariumScene] fish01.glb load fallback:', err);
-        for (let i = 0; i < 4; i++) {
-          spawn(FishSpecies.YellowTang, 1.1, 0.15, 0.38);
+        for (let i = 0; i < 5; i++) {
+          spawnFallback(FishSpecies.YellowTang, 1.1, 0.15, 0.38);
         }
       });
 
-    // 4. Large School of Neon Tetras (14 fish)
-    for (let i = 0; i < 14; i++) {
-      spawn(FishSpecies.NeonTetra, 0.9, 0.20, 0.5);
-    }
+    // 2. Custom 3D Fish 2 (models/fish02.glb - 5 fish)
+    this.customModelLoader
+      .loadGLTF('/models/fish02.glb')
+      .then((template) => {
+        spawnCustomFishGroup(template, 5, 0.058, '-X', 0.16, 0.40);
+      })
+      .catch((err) => {
+        console.warn('[AquariumScene] fish02.glb load fallback:', err);
+        for (let i = 0; i < 5; i++) {
+          spawnFallback(FishSpecies.BlueTang, 1.15, 0.16, 0.4);
+        }
+      });
+
+    // 3. Custom 3D Fish 3 (models/fish03.glb - 6 fish)
+    this.customModelLoader
+      .loadGLTF('/models/fish03.glb')
+      .then((template) => {
+        spawnCustomFishGroup(template, 6, 0.056, '-X', 0.16, 0.39);
+      })
+      .catch((err) => {
+        console.warn('[AquariumScene] fish03.glb load fallback:', err);
+        for (let i = 0; i < 6; i++) {
+          spawnFallback(FishSpecies.Clownfish, 1.0, 0.14, 0.35);
+        }
+      });
   }
 
   public update(deltaTimeSeconds: number, timeSeconds: number): void {
-    // 1. Update seaweed sway with sine wave displacement
-    for (const stem of this.seaweedStems) {
-      const posAttr = stem.mesh.geometry.attributes.position;
-      const initial = stem.initialPositions;
-      const count = posAttr.count;
-
-      for (let i = 0; i < count; i++) {
-        const origY = initial[i * 3 + 1];
-        const heightRatio = origY / (this.screen.height * 0.7);
-        // Greater sway at top of stem
-        const sway = Math.sin(timeSeconds * stem.speed + stem.phase + origY * 5) * (0.025 * heightRatio);
-        posAttr.setX(i, initial[i * 3 + 0] + sway);
-      }
-      posAttr.needsUpdate = true;
+    // 1. Update aquatic plant sway with gentle current
+    for (const plant of this.plantDecorations) {
+      plant.group.rotation.z = plant.initialRotationZ + Math.sin(timeSeconds * plant.speed + plant.phase) * 0.035;
+      plant.group.rotation.x = plant.initialRotationX + Math.cos(timeSeconds * (plant.speed * 0.8) + plant.phase) * 0.02;
     }
 
     // 2. Update rising micro-bubbles

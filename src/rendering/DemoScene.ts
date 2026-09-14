@@ -193,6 +193,13 @@ export class DemoScene {
   }
 
   /**
+   * Returns the current active 3D model URL.
+   */
+  public getModel(): string {
+    return this.currentModelUrl;
+  }
+
+  /**
    * Adjusts the Z depth position of the 3D model.
    */
   public setModelZ(zMeters: number): void {
