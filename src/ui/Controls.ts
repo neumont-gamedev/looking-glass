@@ -173,7 +173,7 @@ export class Controls {
     this.topBar.innerHTML = `
       <div class="topbar-left">
         <div class="topbar-brand">
-          <img src="/looking-glass-logo.png" alt="Looking Glass Logo" class="app-logo" />
+          <img src="/looking-glass-icon.png" alt="Looking Glass" class="app-logo" />
           <span class="app-title">Looking Glass</span>
         </div>
         <div class="debug-hud-box" id="debug-hud-box">
