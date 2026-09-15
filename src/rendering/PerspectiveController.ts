@@ -101,7 +101,8 @@ export class PerspectiveController {
   }
 
   public setReferenceDistance(dist: number): void {
-    this.referenceDistance = Math.max(0.2, dist);
+    if (!Number.isFinite(dist)) return;
+    this.referenceDistance = Math.max(this.MIN_Z, Math.min(this.MAX_Z, dist));
     this.applyCurrentProjection();
   }
 
@@ -142,6 +143,9 @@ export class PerspectiveController {
    */
   public setTrackingSmoothnessPercent(percent: number): void {
     const params = computeSmoothingParameters(percent);
+    const amount = Math.max(0, Math.min(100, percent)) / 100;
+    this.predictor.config.stationaryRadiusXY = .0004 + .0012 * amount;
+    this.predictor.config.stationaryRadiusZ = 2 * this.predictor.config.stationaryRadiusXY;
     this.setLookaheadMs(params.lookaheadMs);
     this.setSmoothTimeMs(params.smoothTimeMs);
     this.setDeadbandEnabled(params.deadbandEnabled);
@@ -152,6 +156,7 @@ export class PerspectiveController {
    * Updates target pose from real-time tracking.
    */
   public updatePose(pose: ViewerPose, isTrackingValid: boolean, timestampSeconds: number): void {
+    isTrackingValid = isTrackingValid && [pose.x, pose.y, pose.z, timestampSeconds].every(Number.isFinite);
     if (isTrackingValid) {
       this.isFaceLost = false;
 
@@ -175,7 +180,11 @@ export class PerspectiveController {
     } else {
       if (!this.isFaceLost) {
         this.isFaceLost = true;
-        this.faceLostTimestamp = timestampSeconds;
+        this.faceLostTimestamp = Number.isFinite(timestampSeconds) ? timestampSeconds : performance.now() / 1000;
+        // Hold the displayed pose, not the extrapolated target. Discard old
+        // velocity and filter history so reacquisition cannot reuse momentum.
+        this.predictor.reset(this.getCurrentPose());
+        this.filter.reset();
       }
     }
   }
@@ -184,6 +193,7 @@ export class PerspectiveController {
    * Directly sets simulated target position (e.g. Mouse fallback mode).
    */
   public setSimulatedTarget(x: number, y: number, z: number): void {
+    if (![x, y, z].every(Number.isFinite)) return;
     this.isFaceLost = false;
     const clampedX = Math.max(-this.MAX_X_OFFSET, Math.min(this.MAX_X_OFFSET, x));
     const clampedY = Math.max(-this.MAX_Y_OFFSET, Math.min(this.MAX_Y_OFFSET, y));
@@ -195,25 +205,39 @@ export class PerspectiveController {
    * Per-frame render loop update to interpolate toward target.
    */
   public update(deltaTimeSeconds: number, currentTimestampSeconds: number): void {
+    if (!Number.isFinite(deltaTimeSeconds) || !Number.isFinite(currentTimestampSeconds)) return;
+    const dt = Math.max(0, Math.min(0.08, deltaTimeSeconds));
     if (this.isFaceLost) {
       const elapsedSinceLost = currentTimestampSeconds - this.faceLostTimestamp;
       if (elapsedSinceLost > this.HOLD_DURATION_SEC) {
         // Slowly interpolate back to neutral center (0, 0, defaultDistance)
-        const neutralZ = 0.65;
-        const lerpFactor = Math.min(1.0, deltaTimeSeconds * (1.0 / this.RETURN_SPEED_SEC));
+        const neutralZ = this.referenceDistance;
+        const lerpFactor = 1 - Math.exp(-dt / this.RETURN_SPEED_SEC);
         const currentTarget = this.predictor.getCurrentPosition();
         const returnX = currentTarget.x + (0 - currentTarget.x) * lerpFactor;
         const returnY = currentTarget.y + (0 - currentTarget.y) * lerpFactor;
         const returnZ = currentTarget.z + (neutralZ - currentTarget.z) * lerpFactor;
-        this.predictor.setTargetDirect({ x: returnX, y: returnY, z: returnZ });
+        // This return is already smoothed; applying a second spring would make
+        // its speed depend on render rate and delay the return substantially.
+        this.predictor.reset({ x: returnX, y: returnY, z: returnZ });
       }
     }
 
     // Advance kinematic predictor using critically damped harmonic oscillation (SmoothDamp)
-    const smoothPos = this.predictor.step(deltaTimeSeconds, currentTimestampSeconds);
-    this.currentX = smoothPos.x;
-    this.currentY = smoothPos.y;
-    this.currentZ = smoothPos.z;
+    const smoothPos = this.predictor.step(dt, currentTimestampSeconds);
+    const safePos = {
+      x: Number.isFinite(smoothPos.x) ? Math.max(-this.MAX_X_OFFSET, Math.min(this.MAX_X_OFFSET, smoothPos.x)) : this.currentX,
+      y: Number.isFinite(smoothPos.y) ? Math.max(-this.MAX_Y_OFFSET, Math.min(this.MAX_Y_OFFSET, smoothPos.y)) : this.currentY,
+      z: Number.isFinite(smoothPos.z) ? Math.max(this.MIN_Z, Math.min(this.MAX_Z, smoothPos.z)) : this.currentZ
+    };
+    if (safePos.x !== smoothPos.x || safePos.y !== smoothPos.y || safePos.z !== smoothPos.z) {
+      // Clear prediction momentum when it hits a boundary or becomes invalid.
+      this.predictor.reset(safePos);
+      this.filter.reset();
+    }
+    this.currentX = safePos.x;
+    this.currentY = safePos.y;
+    this.currentZ = safePos.z;
 
     this.applyCurrentProjection();
   }
@@ -250,4 +274,3 @@ export class PerspectiveController {
     }
   }
 }
-

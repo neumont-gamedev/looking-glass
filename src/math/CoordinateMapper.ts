@@ -29,7 +29,7 @@ export class CoordinateMapper {
    * @param landmarkX Normalized landmark X (0 = left, 1 = right of camera feed)
    * @param landmarkY Normalized landmark Y (0 = top, 1 = bottom of camera feed)
    * @param distanceMeters Estimated distance from camera/screen in meters
-   * @param screen Screen geometry to reference physical dimensions
+   * @param cameraAspectRatio Input video width / height (not the display aspect ratio)
    * @param cameraHFOV Horizontal field of view of the webcam in degrees (default ~60 deg)
    * @param invertHorizontal Invert horizontal tracking direction if needed (default false)
    */
@@ -37,7 +37,7 @@ export class CoordinateMapper {
     landmarkX: number,
     landmarkY: number,
     distanceMeters: number,
-    screen: ScreenGeometry,
+    cameraAspectRatio: number,
     cameraHFOV: number = 60,
     invertHorizontal: boolean = false
   ): ViewerPosition {
@@ -49,7 +49,7 @@ export class CoordinateMapper {
 
     // Calculate camera frustum dimensions at viewer distance
     const hFovRad = (cameraHFOV * Math.PI) / 180;
-    const vFovRad = 2 * Math.atan(Math.tan(hFovRad / 2) / screen.aspectRatio);
+    const vFovRad = 2 * Math.atan(Math.tan(hFovRad / 2) / cameraAspectRatio);
 
     const visibleWidthAtDistance = 2 * distanceMeters * Math.tan(hFovRad / 2);
     const visibleHeightAtDistance = 2 * distanceMeters * Math.tan(vFovRad / 2);
@@ -95,4 +95,3 @@ export class CoordinateMapper {
     };
   }
 }
-

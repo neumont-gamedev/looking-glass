@@ -6,7 +6,6 @@
  */
 
 import { NormalizedLandmark, ViewerPose } from './TrackingState';
-import { ScreenGeometry } from '../math/ScreenGeometry';
 import { CoordinateMapper } from '../math/CoordinateMapper';
 import { CalibrationData } from '../calibration/CalibrationData';
 
@@ -38,7 +37,11 @@ export class HeadPoseEstimator {
   private cameraHFOV: number = 60.0; // Standard webcam horizontal field of view in degrees
 
   constructor(cameraHFOV: number = 60.0) {
-    this.cameraHFOV = cameraHFOV;
+    this.setCameraHFOV(cameraHFOV);
+  }
+
+  public setCameraHFOV(degrees: number): void {
+    if (Number.isFinite(degrees) && degrees >= 30 && degrees <= 120) this.cameraHFOV = degrees;
   }
 
   /**
@@ -73,7 +76,7 @@ export class HeadPoseEstimator {
   /**
    * Estimates biometric distance combining iris diameter (if available) and IPD.
    */
-  public estimateBiometricDistance(landmarks: NormalizedLandmark[], screen: ScreenGeometry): BiometricDistanceResult {
+  public estimateBiometricDistance(landmarks: NormalizedLandmark[], cameraAspectRatio: number): BiometricDistanceResult {
     if (!landmarks || landmarks.length < 264) {
       return { distanceMeters: 0.65, confidence: 0.2, hasIris: false, ipdMeters: AVERAGE_HUMAN_IPD_METERS, method: 'fallback' };
     }
@@ -93,8 +96,14 @@ export class HeadPoseEstimator {
     }
 
     const dx = rightEye.x - leftEye.x;
-    const dy = (rightEye.y - leftEye.y) / screen.aspectRatio;
-    const eyeDistNorm = Math.sqrt(dx * dx + dy * dy);
+    // Landmarks normalize X by image width and Y by image height. Convert Y
+    // to width units before taking Euclidean distances (square camera pixels).
+    const dy = (rightEye.y - leftEye.y) / cameraAspectRatio;
+    // MediaPipe relative Z is in the same approximate units as normalized X.
+    // Include the inter-eye depth difference to undo yaw foreshortening rather
+    // than interpreting a narrower projected eye span as greater distance.
+    const dz = rightEye.z - leftEye.z;
+    const eyeDistNorm = Math.hypot(dx, dy, dz);
 
     if (eyeDistNorm < 0.02) {
       return { distanceMeters: 0.65, confidence: 0.3, hasIris: false, ipdMeters: AVERAGE_HUMAN_IPD_METERS, method: 'fallback' };
@@ -104,8 +113,8 @@ export class HeadPoseEstimator {
 
     // 2. Iris Diameter Estimation (if landmarks 468-477 exist)
     if (hasIris && landmarks[469] && landmarks[471] && landmarks[474] && landmarks[476]) {
-      const leftIrisDiam = Math.hypot(landmarks[469].x - landmarks[471].x, (landmarks[469].y - landmarks[471].y) / screen.aspectRatio);
-      const rightIrisDiam = Math.hypot(landmarks[474].x - landmarks[476].x, (landmarks[474].y - landmarks[476].y) / screen.aspectRatio);
+      const leftIrisDiam = this.irisMajorDiameter(landmarks, 469, cameraAspectRatio);
+      const rightIrisDiam = this.irisMajorDiameter(landmarks, 474, cameraAspectRatio);
       const avgIrisDiam = (leftIrisDiam + rightIrisDiam) / 2;
 
       if (avgIrisDiam > 0.004) {
@@ -133,11 +142,24 @@ export class HeadPoseEstimator {
     };
   }
 
+  private irisMajorDiameter(landmarks: NormalizedLandmark[], start: number, aspect: number): number {
+    // The two opposite rim pairs are projected perpendicular iris diameters.
+    // Their 2x2 matrix's largest singular value recovers the ellipse major axis,
+    // which does not shrink under a head turn in the weak-perspective model.
+    const a = landmarks[start], b = landmarks[start + 2];
+    const c = landmarks[start + 1], d = landmarks[start + 3];
+    const ux = a.x - b.x, uy = (a.y - b.y) / aspect;
+    const vx = c.x - d.x, vy = (c.y - d.y) / aspect;
+    const trace = ux * ux + uy * uy + vx * vx + vy * vy;
+    const det = ux * vy - uy * vx;
+    return Math.sqrt((trace + Math.sqrt(Math.max(0, trace * trace - 4 * det * det))) / 2);
+  }
+
   /**
    * Estimates distance from the camera based on physical interpupillary distance (IPD).
    */
-  public estimateDistanceMeters(landmarks: NormalizedLandmark[], screen: ScreenGeometry): number {
-    return this.estimateBiometricDistance(landmarks, screen).distanceMeters;
+  public estimateDistanceMeters(landmarks: NormalizedLandmark[], cameraAspectRatio: number): number {
+    return this.estimateBiometricDistance(landmarks, cameraAspectRatio).distanceMeters;
   }
 
   /**
@@ -176,17 +198,17 @@ export class HeadPoseEstimator {
    */
   public estimateRawPose(
     landmarks: NormalizedLandmark[],
-    screen: ScreenGeometry,
+    cameraAspectRatio: number,
     timestamp: number
   ): ViewerPose {
     const eyeMid = this.getEyeMidpoint(landmarks);
-    const estimatedDistance = this.estimateDistanceMeters(landmarks, screen);
+    const estimatedDistance = this.estimateDistanceMeters(landmarks, cameraAspectRatio);
 
     const rawPos = CoordinateMapper.landmarkToViewerPosition(
       eyeMid.x,
       eyeMid.y,
       estimatedDistance,
-      screen,
+      cameraAspectRatio,
       this.cameraHFOV,
       false
     );
@@ -210,19 +232,19 @@ export class HeadPoseEstimator {
    */
   public estimatePose(
     landmarks: NormalizedLandmark[],
-    screen: ScreenGeometry,
+    cameraAspectRatio: number,
     calibration: CalibrationData,
     timestamp: number
   ): ViewerPose {
     const eyeMid = this.getEyeMidpoint(landmarks);
-    const estimatedDistance = this.estimateDistanceMeters(landmarks, screen);
+    const estimatedDistance = this.estimateDistanceMeters(landmarks, cameraAspectRatio);
 
     // Convert normalized landmark to raw physical coordinates
     const rawPos = CoordinateMapper.landmarkToViewerPosition(
       eyeMid.x,
       eyeMid.y,
       estimatedDistance,
-      screen,
+      cameraAspectRatio,
       this.cameraHFOV,
       calibration.invertHorizontal ?? false
     );
@@ -233,9 +255,9 @@ export class HeadPoseEstimator {
     // Depth calculation
     let calibratedZ: number;
     if (calibration.continuousDepthTracking) {
-      // Continuous biometric tracking relative to calibrated viewing distance
+      // Scale depth motion around the physical resting distance, not the origin.
       const biometricRatio = rawPos.z / Math.max(0.2, calibration.neutralOrigin.z);
-      calibratedZ = Math.max(0.2, calibration.viewingDistance * biometricRatio * calibration.sensitivity.z);
+      calibratedZ = Math.max(0.2, calibration.viewingDistance * (1 + (biometricRatio - 1) * calibration.sensitivity.z));
     } else {
       // Relative depth delta from neutral seating pose
       const depthDelta = (rawPos.z - calibration.neutralOrigin.z) * calibration.sensitivity.z;
@@ -256,4 +278,3 @@ export class HeadPoseEstimator {
     };
   }
 }
-

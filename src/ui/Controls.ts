@@ -75,6 +75,7 @@ export interface ControlsCallbacks {
   onToggleDebugHud?: (visible: boolean) => void;
   getCurrentRawPose?: () => ViewerPose | null;
   getBiometricDistance?: () => BiometricDistanceResult | null;
+  onCalibrateCamera?: (distanceMeters: number) => number;
   onModelChange?: (modelUrl: string) => void;
   getModel?: () => string;
   onTextureChange?: (textureUrl: string) => void;
@@ -775,6 +776,10 @@ export class Controls {
 
   private updateDrawerCalibrationReadouts(): void {
     const data = this.calibrationManager.getData();
+    const fovSlider = this.settingsDrawer.querySelector('#camera-fov') as HTMLInputElement;
+    const fovValue = this.settingsDrawer.querySelector('#camera-fov-value');
+    if (fovSlider && document.activeElement !== fovSlider) fovSlider.value = data.cameraHFOV.toFixed(1);
+    if (fovValue) fovValue.textContent = `${data.cameraHFOV.toFixed(1)}°`;
     const wCm = (data.screenWidth * 100).toFixed(1);
     const hCm = (data.screenHeight * 100).toFixed(1);
     const wIn = (data.screenWidth * 39.3701).toFixed(1);
@@ -798,7 +803,8 @@ export class Controls {
     // Readout box
     const dimReadout = this.settingsDrawer.querySelector('#drawer-dim-readout');
     if (dimReadout) {
-      dimReadout.innerHTML = `Physical Window: ${wCm} × ${hCm} cm (${wIn}" × ${hIn}")<br><span style="font-size: 0.68rem; opacity: 0.8;">Diagonal: ${diagIn}" • Aspect: ${aspect}:1</span>`;
+      const viewport = this.calibrationManager.getScreenGeometry();
+      dimReadout.innerHTML = `Full monitor: ${wCm} × ${hCm} cm (${wIn}" × ${hIn}")<br>3D window: ${(viewport.width * 100).toFixed(1)} × ${(viewport.height * 100).toFixed(1)} cm<br><span style="font-size: 0.68rem; opacity: 0.8;">Diagonal: ${diagIn}" • Aspect: ${aspect}:1</span>`;
     }
 
     // Preset buttons active state
@@ -869,9 +875,24 @@ export class Controls {
           </div>
         </div>
 
+        <div class="setting-group">
+          <h4>Webcam Field of View</h4>
+          <div class="slider-row">
+            <label for="camera-fov">Horizontal FOV: <span id="camera-fov-value">${calibData.cameraHFOV.toFixed(1)}°</span></label>
+            <input type="range" id="camera-fov" min="30" max="120" step="0.1" value="${calibData.cameraHFOV}" />
+          </div>
+          <p>Measure from the camera lens to your eyes. Face the camera straight on and hold still for one second.</p>
+          <label for="camera-measured-distance">Camera-to-eye distance (cm)</label>
+          <input type="number" id="camera-measured-distance" min="30" max="150" step="1" value="${Math.round(calibData.viewingDistance * 100)}" />
+          <button class="btn" id="camera-fov-calibrate">Estimate FOV from distance</button>
+          <p class="status-note" id="camera-fov-feedback" role="status"></p>
+          <small>Estimate assumes 63 mm pupil spacing. You can also enter your camera's horizontal FOV with the slider. Recalibrate after changing cameras or capture modes.</small>
+        </div>
+
         <!-- Screen Dimensions Section -->
         <div class="setting-group" style="margin-top: 14px; border-top: 1px solid var(--bg-surface-border); padding-top: 12px;">
-          <h4>Screen Dimensions</h4>
+          <h4>Full Monitor Dimensions</h4>
+          <p>Enter the full display size. The 3D window adjusts to the browser size automatically. Use 100% browser zoom.</p>
           <div style="font-size: 0.70rem; color: var(--text-secondary); margin-bottom: 5px;">Monitor Presets:</div>
           <div class="calib-preset-buttons" style="margin-bottom: 10px;">
             <button type="button" class="btn-preset drawer-preset-btn" data-diag="14">14"</button>
@@ -889,7 +910,7 @@ export class Controls {
             <input type="range" id="drawer-height-slider" min="12" max="100" step="0.5" value="${(calibData.screenHeight * 100).toFixed(1)}" />
           </div>
           <div class="screen-metric-readout" id="drawer-dim-readout" style="font-size: 0.73rem; color: var(--text-secondary); margin-top: 6px; line-height: 1.4; background: rgba(0,0,0,0.25); padding: 6px 8px; border-radius: 6px;">
-            Physical Window: ${(calibData.screenWidth * 100).toFixed(1)} × ${(calibData.screenHeight * 100).toFixed(1)} cm (${(calibData.screenWidth * 39.3701).toFixed(1)}" × ${(calibData.screenHeight * 39.3701).toFixed(1)}")
+            Full monitor: ${(calibData.screenWidth * 100).toFixed(1)} × ${(calibData.screenHeight * 100).toFixed(1)} cm (${(calibData.screenWidth * 39.3701).toFixed(1)}" × ${(calibData.screenHeight * 39.3701).toFixed(1)}")
             <br><span style="font-size: 0.68rem; opacity: 0.8;">Diagonal: ${(Math.hypot(calibData.screenWidth, calibData.screenHeight) * 39.3701).toFixed(1)}" • Aspect: ${(calibData.screenWidth / calibData.screenHeight).toFixed(2)}:1</span>
           </div>
         </div>
@@ -987,6 +1008,21 @@ export class Controls {
 
     this.settingsDrawer.querySelector('#drawer-close-btn')?.addEventListener('click', () => {
       this.closeDrawer();
+    });
+
+    this.settingsDrawer.querySelector('#camera-fov')?.addEventListener('input', (event) => {
+      this.calibrationManager.setCameraHFOV(Number((event.target as HTMLInputElement).value));
+    });
+    this.settingsDrawer.querySelector('#camera-fov-calibrate')?.addEventListener('click', () => {
+      const feedback = this.settingsDrawer.querySelector('#camera-fov-feedback');
+      const distance = Number((this.settingsDrawer.querySelector('#camera-measured-distance') as HTMLInputElement).value) / 100;
+      try {
+        if (!this.callbacks.onCalibrateCamera) throw new Error('Camera calibration is unavailable.');
+        const fov = this.callbacks.onCalibrateCamera(distance);
+        if (feedback) feedback.textContent = `Saved ${fov.toFixed(1)}°. Sit at your viewing position and set the neutral center next.`;
+      } catch (error) {
+        if (feedback) feedback.textContent = error instanceof Error ? error.message : 'Calibration failed. Try again.';
+      }
     });
 
     // Monitor Presets buttons
@@ -1094,7 +1130,8 @@ export class Controls {
     // Biometric lock button
     this.settingsDrawer.querySelector('#btn-drawer-bio-lock')?.addEventListener('click', () => {
       if (this.latestBiometricResult && this.latestBiometricResult.confidence > 0.4) {
-        this.calibrationManager.setViewingDistance(this.latestBiometricResult.distanceMeters);
+        const distance = this.latestBiometricResult.distanceMeters;
+        this.calibrationManager.setViewingDistance(distance, distance);
         this.updateDrawerCalibrationReadouts();
         const feedback = this.settingsDrawer.querySelector('#drawer-bio-feedback') as HTMLElement;
         const cmVal = (this.latestBiometricResult.distanceMeters * 100).toFixed(0);

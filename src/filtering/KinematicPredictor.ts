@@ -24,6 +24,9 @@ export interface KinematicPredictorConfig {
   enableDeadband: boolean;
   /** Maximum inter-frame extrapolation time in seconds before decaying velocity. Default: 0.070 */
   maxExtrapolationGap: number;
+  /** Stationary displacement radii in meters (XY 1mm, Z 2mm). */
+  stationaryRadiusXY: number;
+  stationaryRadiusZ: number;
 }
 
 export class KinematicPredictor {
@@ -33,6 +36,7 @@ export class KinematicPredictor {
   private samplePos: Vector3D = { x: 0, y: 0, z: 0.65 };
   private sampleVel: Vector3D = { x: 0, y: 0, z: 0 };
   private lastSampleTime: number | null = null;
+  private stationaryAnchor: Vector3D | null = null;
 
   // Current interpolated state of the camera
   private currentPos: Vector3D = { x: 0, y: 0, z: 0.65 };
@@ -44,7 +48,9 @@ export class KinematicPredictor {
       smoothTime: config.smoothTime ?? 0.055,
       deadbandThreshold: config.deadbandThreshold ?? 0.006,
       enableDeadband: config.enableDeadband ?? true,
-      maxExtrapolationGap: config.maxExtrapolationGap ?? 0.070
+      maxExtrapolationGap: config.maxExtrapolationGap ?? 0.070,
+      stationaryRadiusXY: config.stationaryRadiusXY ?? .001,
+      stationaryRadiusZ: config.stationaryRadiusZ ?? .002
     };
   }
 
@@ -57,6 +63,7 @@ export class KinematicPredictor {
     this.currentPos = { ...pos };
     this.currentVel = { x: 0, y: 0, z: 0 };
     this.lastSampleTime = null;
+    this.stationaryAnchor = null;
   }
 
   /**
@@ -67,20 +74,31 @@ export class KinematicPredictor {
    * @param timestampSec Sample timestamp in seconds
    */
   public updateSample(pos: Vector3D, vel: Vector3D, timestampSec: number): void {
+    const anchor = this.stationaryAnchor ?? pos;
+    const radiusXY = Math.max(.0001, this.config.stationaryRadiusXY);
+    const radiusZ = Math.max(.0001, this.config.stationaryRadiusZ);
+    const displacement = Math.hypot((pos.x - anchor.x) / radiusXY,
+      (pos.y - anchor.y) / radiusXY, (pos.z - anchor.z) / radiusZ);
+    if (this.config.enableDeadband && displacement < 1 && Math.hypot(vel.x, vel.y, vel.z) < this.config.deadbandThreshold) {
+      this.stationaryAnchor = { ...anchor };
+      pos = anchor;
+      vel = { x: 0, y: 0, z: 0 };
+    } else {
+      // Keep a fixed anchor while stationary: slow intentional motion eventually
+      // leaves the radius instead of being swallowed by a moving dead zone.
+      this.stationaryAnchor = { ...pos };
+    }
     this.samplePos = { ...pos };
     this.sampleVel = { ...vel };
     this.lastSampleTime = timestampSec;
 
-    // First sample initialization
-    if (this.lastSampleTime === null) {
-      this.currentPos = { ...pos };
-    }
   }
 
   /**
    * Sets target directly without velocity (e.g. for mouse or fallback simulation).
    */
   public setTargetDirect(pos: Vector3D): void {
+    this.stationaryAnchor = null;
     this.samplePos = { ...pos };
     this.sampleVel = { x: 0, y: 0, z: 0 };
     this.lastSampleTime = null;
@@ -121,9 +139,9 @@ export class KinematicPredictor {
     let extrapolationDt = this.config.lookaheadSeconds;
     if (this.lastSampleTime !== null) {
       const elapsedSinceSample = Math.max(0, currentTimeSec - this.lastSampleTime);
-      if (elapsedSinceSample < this.config.maxExtrapolationGap) {
-        extrapolationDt += elapsedSinceSample;
-      } else {
+      // Cap sample age continuously; dropping it at the threshold caused a jump.
+      extrapolationDt += Math.min(elapsedSinceSample, this.config.maxExtrapolationGap);
+      if (elapsedSinceSample >= this.config.maxExtrapolationGap) {
         // Fade velocity when tracking updates stall
         const fadeFactor = Math.max(0, 1 - (elapsedSinceSample - this.config.maxExtrapolationGap) / 0.1);
         effVx *= fadeFactor;
@@ -187,4 +205,3 @@ export class KinematicPredictor {
     return { ...this.currentVel };
   }
 }
-

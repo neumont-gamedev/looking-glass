@@ -47,6 +47,8 @@ export class OneEuroFilter {
 
   private xFilter: LowPassFilter = new LowPassFilter();
   private dxFilter: LowPassFilter = new LowPassFilter();
+  private velocityFilter: LowPassFilter = new LowPassFilter();
+  private lastRaw: number | null = null;
   private lastTime: number | null = null;
 
   constructor(config: Partial<OneEuroConfig> = {}) {
@@ -69,9 +71,13 @@ export class OneEuroFilter {
   public filter(x: number, timestamp: number): number {
     if (this.lastTime === null) {
       this.lastTime = timestamp;
+      this.lastRaw = x;
+      this.velocityFilter.filter(0, 1);
       return this.xFilter.filter(x, 1.0);
     }
 
+    // Ignore duplicate/out-of-order samples rather than inventing a tiny dt.
+    if (timestamp <= this.lastTime) return this.xFilter.last() ?? x;
     const dt = Math.max(0.0001, timestamp - this.lastTime);
     this.lastTime = timestamp;
     const rate = 1.0 / dt;
@@ -80,6 +86,11 @@ export class OneEuroFilter {
     const prevX = this.xFilter.last() ?? x;
     const dx = (x - prevX) * rate;
     const edx = this.dxFilter.filter(dx, this.alpha(rate, this.dCutoff));
+
+    // Prediction needs physical velocity between raw observations. The adaptive
+    // cutoff derivative above includes position-filter lag and overstates speed.
+    this.velocityFilter.filter((x - (this.lastRaw ?? x)) * rate, this.alpha(rate, this.dCutoff));
+    this.lastRaw = x;
 
     // Dynamic cutoff based on speed
     const cutoff = this.minCutoff + this.beta * Math.abs(edx);
@@ -99,13 +110,14 @@ export class OneEuroFilter {
    * Returns the current estimated filtered velocity (units per second).
    */
   public getVelocity(): number {
-    return this.dxFilter.last() ?? 0;
+    return this.velocityFilter.last() ?? 0;
   }
 
   public reset(): void {
     this.xFilter.reset();
     this.dxFilter.reset();
+    this.velocityFilter.reset();
+    this.lastRaw = null;
     this.lastTime = null;
   }
 }
-

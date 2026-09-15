@@ -8,6 +8,7 @@ import { Renderer } from '../rendering/Renderer';
 import { SceneManager } from '../rendering/SceneManager';
 import { PerspectiveController } from '../rendering/PerspectiveController';
 import { CalibrationManager } from '../calibration/CalibrationManager';
+import { WebcamCalibration } from '../calibration/WebcamCalibration';
 import { FaceTracker } from '../tracking/FaceTracker';
 import { HeadPoseEstimator } from '../tracking/HeadPoseEstimator';
 import { TrackingDebugView } from '../tracking/TrackingDebugView';
@@ -21,6 +22,7 @@ import { FpsCounter } from '../utils/Debug';
 import { SceneType } from '../rendering/DemoScene';
 
 export class LookingGlassApp {
+  private webcamCalibration = new WebcamCalibration();
   private canvas: HTMLCanvasElement;
   private renderer: Renderer;
   private sceneManager: SceneManager;
@@ -83,7 +85,7 @@ export class LookingGlassApp {
 
     // 3. Initialize Tracking Subsystems
     this.faceTracker = new FaceTracker();
-    this.poseEstimator = new HeadPoseEstimator(60.0);
+    this.poseEstimator = new HeadPoseEstimator(this.calibrationManager.getData().cameraHFOV);
     this.debugView = new TrackingDebugView();
     this.debugView.attachVideo(this.faceTracker.getVideoElement());
     this.debugView.setVisible(settings.webcamPipVisible);
@@ -101,8 +103,7 @@ export class LookingGlassApp {
           if (!this.currentResult?.landmarks || this.currentResult.landmarks.length < 264) {
             return null;
           }
-          const screen = this.calibrationManager.getScreenGeometry();
-          return this.poseEstimator.estimateBiometricDistance(this.currentResult.landmarks, screen);
+          return this.poseEstimator.estimateBiometricDistance(this.currentResult.landmarks, this.getCameraAspectRatio());
         },
         onWireframeModeToggle: (active: boolean) => {
           this.sceneManager.wireframeCalibration.setVisible(active);
@@ -117,6 +118,12 @@ export class LookingGlassApp {
       this.settingsManager,
       {
         onInputModeChange: (mode) => this.handleInputModeChange(mode),
+        onCalibrateCamera: (distanceMeters) => {
+          const degrees = this.webcamCalibration.estimate(distanceMeters, .063, performance.now() / 1000);
+          this.calibrationManager.setCameraHFOV(degrees);
+          this.calibrationManager.setViewingDistance(distanceMeters);
+          return degrees;
+        },
         onSceneChange: (sceneType) => this.handleSceneChange(sceneType),
         onFeedFish: () => this.handleFeedFish(),
         onToggleDebugHud: (visible) => {
@@ -128,8 +135,7 @@ export class LookingGlassApp {
           if (!this.currentResult?.landmarks || this.currentResult.landmarks.length < 264) {
             return null;
           }
-          const screen = this.calibrationManager.getScreenGeometry();
-          return this.poseEstimator.estimateBiometricDistance(this.currentResult.landmarks, screen);
+          return this.poseEstimator.estimateBiometricDistance(this.currentResult.landmarks, this.getCameraAspectRatio());
         },
         onModelChange: (modelUrl: string) => {
           this.sceneManager.demoScene.setModel(modelUrl);
@@ -181,11 +187,20 @@ export class LookingGlassApp {
     this.setupListeners();
   }
 
+  private getCameraAspectRatio(): number {
+    const video = this.faceTracker.getVideoElement();
+    // Use the negotiated capture size, not the requested size or viewport.
+    return video.videoWidth > 0 && video.videoHeight > 0
+      ? video.videoWidth / video.videoHeight
+      : 4 / 3;
+  }
+
   private setupListeners(): void {
     // Calibration updates
     this.calibrationManager.subscribe(() => {
       const geom = this.calibrationManager.getScreenGeometry();
       const calib = this.calibrationManager.getData();
+      this.poseEstimator.setCameraHFOV(calib.cameraHFOV);
       this.perspectiveController.setScreenGeometry(geom);
       this.perspectiveController.setReferenceDistance(calib.viewingDistance);
       this.sceneManager.rebuild(geom);
@@ -198,22 +213,26 @@ export class LookingGlassApp {
 
       if (result.visible && result.landmarks.length > 0) {
         const calib = this.calibrationManager.getData();
-        const screen = this.calibrationManager.getScreenGeometry();
+        const cameraAspectRatio = this.getCameraAspectRatio();
+        this.webcamCalibration.add(result.landmarks, cameraAspectRatio, result.timestamp);
         const pose = this.poseEstimator.estimatePose(
           result.landmarks,
-          screen,
+          cameraAspectRatio,
           calib,
           result.timestamp
         );
         this.currentRawPose = this.poseEstimator.estimateRawPose(
           result.landmarks,
-          screen,
+          cameraAspectRatio,
           result.timestamp
         );
-        this.perspectiveController.updatePose(pose, true, result.timestamp);
-        this.statusPanel.setStatus(TrackingStatus.Active);
+        const validPose = [pose.x, pose.y, pose.z, result.timestamp].every(Number.isFinite);
+        if (!validPose) this.currentRawPose = null;
+        this.perspectiveController.updatePose(pose, validPose, result.timestamp);
+        this.statusPanel.setStatus(validPose ? TrackingStatus.Active : TrackingStatus.FaceLost);
       } else {
         this.currentRawPose = null;
+        this.webcamCalibration.reset();
         this.perspectiveController.updatePose(
           { x: 0, y: 0, z: 0.65, confidence: 0, timestamp: result.timestamp },
           false,
@@ -347,6 +366,7 @@ export class LookingGlassApp {
   };
 
   private handleInputModeChange(mode: InputMode): void {
+    this.webcamCalibration.reset();
     this.inputMode = mode;
     this.settingsManager.updateSettings({
       inputMode: mode,
@@ -431,6 +451,7 @@ export class LookingGlassApp {
     const rawDeltaSeconds = Math.min(0.1, (now - this.lastFrameTime) / 1000);
     this.lastFrameTime = now;
     const realTimeSec = now / 1000;
+    this.faceTracker.checkHealth(now);
 
     const fps = this.fpsCounter.update();
 
@@ -451,7 +472,11 @@ export class LookingGlassApp {
       this.perspectiveController.setSimulatedTarget(autoX, autoY, autoZ);
     }
 
-    // 2. Fixed Timestep Simulation Update (Guarantees constant 60 FPS physics & kinematics)
+    // Tracking timestamps use performance.now(). Update the camera once per
+    // render with that same clock, even when scene simulation discards backlog.
+    this.perspectiveController.update(rawDeltaSeconds, realTimeSec);
+
+    // 2. Fixed timestep for scene physics only.
     this.simAccumulator += rawDeltaSeconds;
     const FIXED_SIM_STEP = 1 / 60; // 60 Hz = 16.667ms
     const MAX_SUBSTEPS = 3; // Prevent spiral of death
@@ -459,9 +484,6 @@ export class LookingGlassApp {
 
     while (this.simAccumulator >= FIXED_SIM_STEP && substeps < MAX_SUBSTEPS) {
       this.simTimeSeconds += FIXED_SIM_STEP;
-
-      // Update camera perspective smoothing & kinematic predictor with fixed step
-      this.perspectiveController.update(FIXED_SIM_STEP, this.simTimeSeconds);
 
       // Update 3D scene simulation (aquarium boids, fish swimming, bubbles, plants sway, diorama)
       this.sceneManager.update(FIXED_SIM_STEP, this.simTimeSeconds);

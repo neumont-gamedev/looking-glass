@@ -14,7 +14,7 @@ export interface SensitivitySettings {
 export type DistanceCalibrationMode = 'wireframe' | 'biometric' | 'manual';
 
 export interface CalibrationData {
-  /** Calibrated neutral head position in meters */
+  /** Raw biometric pose at neutral; depth is distinct from physical viewingDistance. */
   neutralOrigin: {
     x: number;
     y: number;
@@ -25,6 +25,8 @@ export interface CalibrationData {
   screenHeight: number;
   /** Screen diagonal in inches (for UI display/input) */
   screenDiagonalInches: number;
+  /** Horizontal field of view for the current webcam/capture mode, in degrees. */
+  cameraHFOV: number;
   /** Calibrated standard viewing distance in meters (default: 0.65m) */
   viewingDistance: number;
   /** Active distance calibration method */
@@ -48,6 +50,7 @@ export const DEFAULT_CALIBRATION_DATA: CalibrationData = {
   screenWidth: 0.531, // ~24" 16:9
   screenHeight: 0.299,
   screenDiagonalInches: 24,
+  cameraHFOV: 60,
   viewingDistance: 0.65,
   distanceMode: 'wireframe',
   continuousDepthTracking: false,
@@ -59,4 +62,3 @@ export const DEFAULT_CALIBRATION_DATA: CalibrationData = {
   isCalibrated: false,
   invertHorizontal: false
 };
-

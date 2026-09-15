@@ -21,8 +21,8 @@ export class ScreenGeometry {
    * @param height Physical height in meters (default ~0.30m for standard 24" 16:9 screen)
    */
   constructor(width: number = 0.531, height: number = 0.299) {
-    this._width = Math.max(0.1, width);
-    this._height = Math.max(0.1, height);
+    this._width = Number.isFinite(width) ? Math.max(0.001, width) : .531;
+    this._height = Number.isFinite(height) ? Math.max(0.001, height) : .299;
   }
 
   get width(): number {
@@ -30,7 +30,7 @@ export class ScreenGeometry {
   }
 
   set width(value: number) {
-    this._width = Math.max(0.1, value);
+    if (Number.isFinite(value)) this._width = Math.max(0.001, value);
   }
 
   get height(): number {
@@ -38,7 +38,7 @@ export class ScreenGeometry {
   }
 
   set height(value: number) {
-    this._height = Math.max(0.1, value);
+    if (Number.isFinite(value)) this._height = Math.max(0.001, value);
   }
 
   get aspectRatio(): number {
@@ -82,4 +82,3 @@ export class ScreenGeometry {
     }
   }
 }
-

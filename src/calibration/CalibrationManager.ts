@@ -1,5 +1,4 @@
 /**
-/**
  * CalibrationManager.ts
  *
  * Manages loading, saving, and updating user calibration settings.
@@ -9,7 +8,7 @@ import { Storage } from '../utils/Storage';
 import { CalibrationData, DEFAULT_CALIBRATION_DATA, DistanceCalibrationMode } from './CalibrationData';
 import { ScreenGeometry } from '../math/ScreenGeometry';
 
-const STORAGE_KEY = 'looking_glass_calibration_v2';
+const STORAGE_KEY = 'looking_glass_calibration_v3';
 
 export class CalibrationManager {
   private data: CalibrationData;
@@ -24,51 +23,38 @@ export class CalibrationManager {
     }
   }
 
-  /**
-   * Adapts physical screen dimensions to match the viewport's exact aspect ratio
-   * based on the display's physical pixel pitch.
-   *
-   * Physical display pixels are square (1:1 aspect ratio). Therefore, the physical width
-   * and height of any viewport rectangle on screen must have the exact same aspect ratio
-   * as the viewport pixel dimensions: W_meters / H_meters = widthPx / heightPx.
-   *
-   * @param widthPx Viewport width in pixels (typically window.innerWidth)
-   * @param heightPx Viewport height in pixels (typically window.innerHeight)
+  /** Derive the canvas aperture from immutable full-monitor dimensions.
+   * window.screen and innerWidth/Height are CSS pixels at the same scale at
+   * 100% browser zoom. No viewport dimensions are persisted as monitor size.
    */
   public updateViewport(widthPx: number, heightPx: number): void {
-    if (widthPx <= 0 || heightPx <= 0) return;
+    if (![widthPx, heightPx].every(Number.isFinite) || widthPx <= 0 || heightPx <= 0) return;
+    const screenW = typeof window !== 'undefined' && window.screen?.width > 0 ? window.screen.width : widthPx;
+    const screenH = typeof window !== 'undefined' && window.screen?.height > 0 ? window.screen.height : heightPx;
+    const width = this.data.screenWidth * widthPx / screenW;
+    const height = this.data.screenHeight * heightPx / screenH;
+    if (Math.abs(this.screenGeometry.width - width) < .00001 && Math.abs(this.screenGeometry.height - height) < .00001) return;
+    this.screenGeometry.width = width;
+    this.screenGeometry.height = height;
+    this.notify();
+  }
 
-    // Monitor diagonal in meters
-    const diagMeters = (this.data.screenDiagonalInches ?? 24) * 0.0254;
-
-    // Physical screen resolution in pixels
-    // Use window.screen if available to determine physical pixel pitch
-    const screenW = (typeof window !== 'undefined' && window.screen?.width > 0)
-      ? window.screen.width
-      : widthPx;
-    const screenH = (typeof window !== 'undefined' && window.screen?.height > 0)
-      ? window.screen.height
-      : heightPx;
-
-    const screenDiagPx = Math.hypot(screenW, screenH);
-    const pixelPitch = diagMeters / (screenDiagPx > 0 ? screenDiagPx : Math.hypot(1920, 1080));
-
-    // Viewport physical dimensions in meters
-    const viewportWidthMeters = widthPx * pixelPitch;
-    const viewportHeightMeters = heightPx * pixelPitch;
-
-    // Avoid redundant notifications if dimensions haven't changed meaningfully (< 0.2 mm)
-    const dw = Math.abs(this.screenGeometry.width - viewportWidthMeters);
-    const dh = Math.abs(this.screenGeometry.height - viewportHeightMeters);
-    if (dw < 0.0002 && dh < 0.0002) {
-      return;
+  private refreshViewport(): void {
+    if (typeof window !== 'undefined') {
+      this.updateViewport(window.innerWidth, window.innerHeight);
+    } else {
+      this.screenGeometry.width = this.data.screenWidth;
+      this.screenGeometry.height = this.data.screenHeight;
     }
+  }
 
-    this.data.screenWidth = viewportWidthMeters;
-    this.data.screenHeight = viewportHeightMeters;
-    this.screenGeometry.width = viewportWidthMeters;
-    this.screenGeometry.height = viewportHeightMeters;
-
+  public setCameraHFOV(degrees: number): void {
+    if (!Number.isFinite(degrees) || degrees < 30 || degrees > 120) return;
+    // X/Y cancel focal length when both distance and offset are estimated from
+    // the same image; raw Z rescales. Preserve the existing neutral calibration.
+    const ratio = Math.tan(this.data.cameraHFOV * Math.PI / 360) / Math.tan(degrees * Math.PI / 360);
+    this.data.neutralOrigin.z *= ratio;
+    this.data.cameraHFOV = degrees;
     this.save();
     this.notify();
   }
@@ -88,9 +74,14 @@ export class CalibrationManager {
     this.notify();
   }
 
-  public setViewingDistance(distanceMeters: number): void {
+  public setViewingDistance(distanceMeters: number, measuredNeutralDepth?: number): void {
     this.data.viewingDistance = Math.max(0.2, distanceMeters);
-    this.data.neutralOrigin.z = this.data.viewingDistance;
+    // Keep the measured biometric baseline separate from the physical distance.
+    // Overwriting it here cancels the distance adjustment in estimatePose().
+    // A biometric lock can explicitly supply a fresh measurement as its baseline.
+    if (measuredNeutralDepth !== undefined && Number.isFinite(measuredNeutralDepth) && measuredNeutralDepth > 0) {
+      this.data.neutralOrigin.z = measuredNeutralDepth;
+    }
     this.save();
     this.notify();
   }
@@ -108,62 +99,27 @@ export class CalibrationManager {
   }
 
   public setScreenDiagonal(inches: number): void {
-    this.data.screenDiagonalInches = inches;
-    if (typeof window !== 'undefined' && window.innerWidth > 0 && window.innerHeight > 0) {
-      this.updateViewport(window.innerWidth, window.innerHeight);
-    } else {
-      const geom = ScreenGeometry.fromDiagonal(inches, 16, 9);
-      this.data.screenWidth = geom.width;
-      this.data.screenHeight = geom.height;
-      this.screenGeometry.width = geom.width;
-      this.screenGeometry.height = geom.height;
-      this.save();
-      this.notify();
-    }
+    this.setMonitorPreset(inches);
   }
 
-  /**
-   * Sets screen dimensions and diagonal directly from a monitor size preset (e.g. 14", 16", 24", 27", 32").
-   * Computes standard physical dimensions based on aspect ratio (standard 16:9, or 16:10 for common laptops).
-   */
   public setMonitorPreset(diagonalInches: number, customWidthMeters?: number, customHeightMeters?: number): void {
-    this.data.screenDiagonalInches = diagonalInches;
-
-    let wMeters: number;
-    let hMeters: number;
-
+    if (!Number.isFinite(diagonalInches) || diagonalInches <= 0) return;
     if (customWidthMeters && customHeightMeters) {
-      wMeters = customWidthMeters;
-      hMeters = customHeightMeters;
-    } else {
-      let aspectW = 16;
-      let aspectH = 9;
-      if (typeof window !== 'undefined' && window.screen && window.screen.width > 0 && window.screen.height > 0) {
-        const screenAspect = window.screen.width / window.screen.height;
-        if ((diagonalInches === 14 || diagonalInches === 16) && Math.abs(screenAspect - 1.6) < 0.08) {
-          aspectW = 16;
-          aspectH = 10;
-        }
-      }
-      const geom = ScreenGeometry.fromDiagonal(diagonalInches, aspectW, aspectH);
-      wMeters = geom.width;
-      hMeters = geom.height;
+      this.setScreenDimensions(customWidthMeters, customHeightMeters);
+      return;
     }
-
-    this.data.screenWidth = Math.max(0.1, wMeters);
-    this.data.screenHeight = Math.max(0.1, hMeters);
-    this.screenGeometry.width = this.data.screenWidth;
-    this.screenGeometry.height = this.data.screenHeight;
-    this.save();
-    this.notify();
+    const aspect = typeof window !== 'undefined' && window.screen?.height > 0
+      ? window.screen.width / window.screen.height : 16 / 9;
+    const geometry = ScreenGeometry.fromDiagonal(diagonalInches, aspect, 1);
+    this.setScreenDimensions(geometry.width, geometry.height);
   }
 
   public setScreenDimensions(widthMeters: number, heightMeters: number): void {
-    this.data.screenWidth = Math.max(0.1, widthMeters);
-    this.data.screenHeight = Math.max(0.1, heightMeters);
-    this.screenGeometry.width = this.data.screenWidth;
-    this.screenGeometry.height = this.data.screenHeight;
-    this.data.screenDiagonalInches = Math.hypot(this.data.screenWidth, this.data.screenHeight) * 39.3701;
+    if (![widthMeters, heightMeters].every(Number.isFinite)) return;
+    this.data.screenWidth = Math.max(.1, widthMeters);
+    this.data.screenHeight = Math.max(.1, heightMeters);
+    this.data.screenDiagonalInches = Math.hypot(this.data.screenWidth, this.data.screenHeight) / .0254;
+    this.refreshViewport();
     this.save();
     this.notify();
   }
@@ -201,15 +157,10 @@ export class CalibrationManager {
   }
 
   public resetToDefaults(): void {
-    this.data = JSON.parse(JSON.stringify(DEFAULT_CALIBRATION_DATA));
-    if (typeof window !== 'undefined' && window.innerWidth > 0 && window.innerHeight > 0) {
-      this.updateViewport(window.innerWidth, window.innerHeight);
-    } else {
-      this.screenGeometry.width = this.data.screenWidth;
-      this.screenGeometry.height = this.data.screenHeight;
-      this.save();
-      this.notify();
-    }
+    this.data = structuredClone(DEFAULT_CALIBRATION_DATA);
+    this.refreshViewport();
+    this.save();
+    this.notify();
   }
 
   public subscribe(cb: (data: CalibrationData) => void): () => void {
@@ -222,21 +173,23 @@ export class CalibrationManager {
   private load(): CalibrationData {
     let loaded = Storage.get<CalibrationData | null>(STORAGE_KEY, null);
     if (!loaded) {
-      // Migrate from v1 if present, but purge any stale/corrupted neutralOrigin X/Y offsets
-      const v1 = Storage.get<any>('looking_glass_calibration_v1', null);
-      if (v1) {
-        loaded = {
-          ...DEFAULT_CALIBRATION_DATA,
-          ...v1,
-          neutralOrigin: {
-            x: 0,
-            y: 0,
-            z: v1.neutralOrigin?.z ?? DEFAULT_CALIBRATION_DATA.neutralOrigin.z
-          },
-          isCalibrated: false
-        };
+      const legacy = Storage.get<CalibrationData | null>('looking_glass_calibration_v2', null)
+        ?? Storage.get<CalibrationData | null>('looking_glass_calibration_v1', null);
+      if (legacy) {
+        // v2 saved viewport W/H. Recover full-monitor dimensions from its diagonal.
+        const aspect = typeof window !== 'undefined' && window.screen?.height > 0
+          ? window.screen.width / window.screen.height : 16 / 9;
+        const diagonal = Number.isFinite(legacy.screenDiagonalInches) && legacy.screenDiagonalInches > 0
+          ? legacy.screenDiagonalInches : 24;
+        const monitor = ScreenGeometry.fromDiagonal(diagonal, aspect, 1);
+        loaded = { ...DEFAULT_CALIBRATION_DATA, ...legacy,
+          screenWidth: monitor.width, screenHeight: monitor.height,
+          cameraHFOV: 60, isCalibrated: false };
         Storage.set(STORAGE_KEY, loaded);
       }
+    }
+    if (loaded && (!Number.isFinite(loaded.cameraHFOV) || loaded.cameraHFOV < 30 || loaded.cameraHFOV > 120)) {
+      loaded.cameraHFOV = 60;
     }
 
     return {
@@ -257,4 +210,3 @@ export class CalibrationManager {
     }
   }
 }
-

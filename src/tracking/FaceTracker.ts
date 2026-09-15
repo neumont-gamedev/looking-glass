@@ -27,6 +27,9 @@ export class FaceTracker {
   private isProcessing: boolean = false;
   private readonly minInferenceIntervalMs: number = 33.3; // 30 FPS
   private lastInferenceTime: number = 0;
+  private lastResultTime: number = 0;
+  private lossReported: boolean = false;
+  private readonly RESULT_TIMEOUT_MS = 500;
 
   private trackFpsCounter: FpsCounter = new FpsCounter();
   public trackFps: number = 0;
@@ -218,13 +221,18 @@ export class FaceTracker {
       if (type === 'result') {
         this.handleWorkerResult(visible, landmarks, timestamp, latencyMs);
       } else if (type === 'detect_error') {
-        this.isProcessing = false;
+        this.handleDetectionError(e.data.error);
       }
     };
 
     this.worker.onerror = (err) => {
       console.warn('[FaceTracker] Worker runtime error:', err);
       this.isProcessing = false;
+      this.reportTrackingLoss(performance.now());
+      this.worker?.terminate();
+      this.worker = null;
+      this.useWorker = false;
+      this.updateStatus(TrackingStatus.Error, 'Tracking worker failed. Switch to camera mode to retry.');
     };
   }
 
@@ -234,7 +242,10 @@ export class FaceTracker {
     timestampMs: number,
     latencyMs: number
   ): void {
+    if (!this.isRunning) return;
     this.isProcessing = false;
+    this.lastResultTime = performance.now();
+    this.lossReported = !visible;
     this.inferenceLatencyMs = latencyMs;
     this.trackFps = this.trackFpsCounter.update();
 
@@ -293,6 +304,8 @@ export class FaceTracker {
   }
 
   private startProcessingLoop(): void {
+    this.lastResultTime = performance.now();
+    this.lossReported = false;
     if ('requestVideoFrameCallback' in this.video) {
       this.rVfcHandle = (this.video as any).requestVideoFrameCallback(this.onVideoFrame);
     } else {
@@ -342,8 +355,8 @@ export class FaceTracker {
             this.isProcessing = false;
           }
         })
-        .catch(() => {
-          this.isProcessing = false;
+        .catch((error) => {
+          this.handleDetectionError(error);
         });
     } else if (this.faceLandmarker) {
       // Main-thread fallback: defer outside the rendering frame callback
@@ -370,6 +383,8 @@ export class FaceTracker {
 
     try {
       const results = this.faceLandmarker.detectForVideo(this.video, nowInMs);
+      this.lastResultTime = performance.now();
+      this.lossReported = !results?.faceLandmarks?.length;
       this.inferenceLatencyMs = Math.round((performance.now() - startInference) * 10) / 10;
       this.trackFps = this.trackFpsCounter.update();
 
@@ -396,10 +411,32 @@ export class FaceTracker {
         }
       }
     } catch (e) {
-      console.warn('[FaceTracker] Detection frame error:', e);
+      this.handleDetectionError(e);
     } finally {
       this.isProcessing = false;
     }
+  }
+
+  /** Called by the render loop so stalled video/worker callbacks cannot leave a stale pose active. */
+  public checkHealth(nowMs: number): void {
+    if (this.isRunning && nowMs - this.lastResultTime >= this.RESULT_TIMEOUT_MS) {
+      this.reportTrackingLoss(nowMs);
+    }
+  }
+
+  private handleDetectionError(error: unknown): void {
+    this.isProcessing = false;
+    if (!this.isRunning) return;
+    console.warn('[FaceTracker] Detection failed:', error);
+    this.reportTrackingLoss(performance.now());
+  }
+
+  private reportTrackingLoss(nowMs: number): void {
+    if (!this.isRunning || this.lossReported) return;
+    this.lossReported = true;
+    this.trackFps = 0;
+    this.onResultCallback?.({ visible: false, confidence: 0, timestamp: nowMs / 1000, landmarks: [] });
+    this.updateStatus(TrackingStatus.FaceLost, 'Tracking unavailable. Move back into view.');
   }
 
   private updateStatus(status: TrackingStatus, message?: string): void {
