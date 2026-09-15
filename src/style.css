@@ -1,6 +1,7 @@
 /**
  * style.css — Looking Glass Styling
  */
+@import url('https://fonts.googleapis.com/css2?family=Bruno+Ace&display=swap');
 
 :root {
   --bg-primary: #0a0c10;
@@ -78,6 +79,16 @@ html, body {
 .topbar-brand {
   display: flex;
   align-items: center;
+  gap: 10px;
+}
+
+.app-logo {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 8px var(--accent-glow));
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 /* Remove/hide title and menu buttons when going full screen */
@@ -100,9 +111,10 @@ body.is-fullscreen .hud-topbar,
 }
 
 .app-title {
-  font-size: 1.2rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
+  font-family: 'Bruno Ace', cursive, sans-serif;
+  font-size: 1.25rem;
+  font-weight: 400;
+  letter-spacing: 0.08em;
   color: #ffffff;
   text-shadow: 0 0 14px var(--accent-glow);
   line-height: 1.2;
