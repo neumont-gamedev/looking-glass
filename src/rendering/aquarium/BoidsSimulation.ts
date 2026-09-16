@@ -88,8 +88,9 @@ export class BoidsSimulation {
             separation.add(diff);
           }
 
-          // Alignment (stronger with same species)
-          if (fish.species === other.species) {
+          // Align and cohere only within this school. Separation still applies
+          // to every fish so different schools can pass without overlapping.
+          if (fish.schoolId === other.schoolId) {
             alignment.add(other.velocity);
             cohesion.add(other.position);
             sameSpeciesCount++;
@@ -222,4 +223,3 @@ export class BoidsSimulation {
     return force;
   }
 }
-

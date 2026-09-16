@@ -133,7 +133,7 @@ export class CustomModelLoader {
       }
     });
 
-    // Custom models have their forward axis normalized to +X and no jittering animation applied
+    // Fish applies vertex swimming in this wrapper's normalized +X-forward space.
     return {
       root: wrapperGroup,
       mixer: null,
@@ -193,4 +193,3 @@ export class CustomModelLoader {
     return wrapperGroup;
   }
 }
-

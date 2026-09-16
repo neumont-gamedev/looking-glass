@@ -92,7 +92,7 @@ export class AquariumInteractions {
     const xMeters = (normX * this.screen.width) / 2;
     const yMeters = this.screen.height / 2 - 0.02; // Dropped right below surface
     // Random depth between front and mid-tank
-    const zMeters = -0.15 - Math.random() * 0.35;
+    const zMeters = -0.10 - Math.random() * Math.max(0, this.boids.depth - 0.22);
 
     // Drop 3-4 pellets with slight scatter
     const count = Math.floor(Math.random() * 2) + 2;
@@ -193,4 +193,3 @@ export class AquariumInteractions {
     this.pelletMeshes.clear();
   }
 }
-

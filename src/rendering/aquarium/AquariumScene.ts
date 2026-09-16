@@ -2,7 +2,7 @@
  * AquariumScene.ts
  *
  * Implements the 3D Virtual Aquarium environment:
- * - Sandy ocean floor, coral rocks, and swaying kelp/seaweed
+ * - Gravel floor and supplied log/plant models
  * - Rising micro-bubble particle system for depth parallax
  * - Dynamic school of fish driven by BoidsSimulation
  * - Glass tap shockwave ripples and sinking food interaction
@@ -32,7 +32,20 @@ export class AquariumScene {
   public readonly customModelLoader: CustomModelLoader = new CustomModelLoader();
 
   private screen: ScreenGeometry;
-  private readonly depth: number = 0.85;
+  private readonly depth: number = 0.50; // Match the Model Viewer and Debug rooms.
+  // Reuse the floor texture across viewport/calibration rebuilds.
+  private readonly gravelTexture = new THREE.TextureLoader().load(
+    '/textures/gravel-texture.jpg',
+    undefined,
+    undefined,
+    (error) => console.warn('[AquariumScene] Gravel texture failed to load:', error)
+  );
+  private readonly gravelNormalTexture = new THREE.TextureLoader().load(
+    '/textures/gravel-normal.png',
+    undefined,
+    undefined,
+    (error) => console.warn('[AquariumScene] Gravel normal map failed to load:', error)
+  );
 
   // Environment elements
   private bubbles: THREE.Points | null = null;
@@ -40,6 +53,7 @@ export class AquariumScene {
   private bubbleCount: number = 180;
   private plantDecorations: PlantDecoration[] = [];
   private customDecorations: THREE.Group[] = [];
+  private nextCustomSchoolId = 1;
 
   constructor(screen: ScreenGeometry) {
     this.screen = screen;
@@ -101,7 +115,7 @@ export class AquariumScene {
     }
     this.customDecorations = [];
 
-    // Remove environment meshes (floor, walls, ceiling, rocks) but keep fish groups, interactions, and caustic effect
+    // Remove environment meshes (floor, walls, ceiling) but keep fish groups, interactions, and caustic effect
     const toRemove: THREE.Object3D[] = [];
     for (const child of this.group.children) {
       if (
@@ -132,9 +146,9 @@ export class AquariumScene {
     const H = this.screen.height;
     const D = this.depth;
 
-    // 1. Sandy Sea Floor (at y = -H/2)
+    // 1. Gravel floor (at y = -H/2)
     const floorGeo = new THREE.PlaneGeometry(W, D, 32, 32);
-    // Add subtle fine sand ripples to the seabed
+    // Add subtle unevenness to the seabed
     const posAttr = floorGeo.attributes.position;
     for (let i = 0; i < posAttr.count; i++) {
       const x = posAttr.getX(i);
@@ -144,8 +158,20 @@ export class AquariumScene {
     }
     floorGeo.computeVertexNormals();
 
+    this.gravelTexture.colorSpace = THREE.SRGBColorSpace;
+    this.gravelTexture.wrapS = THREE.RepeatWrapping;
+    this.gravelTexture.wrapT = THREE.RepeatWrapping;
+    // One square tile covers 12.5 cm, preserving stone scale on rectangular floors.
+    this.gravelTexture.repeat.set(W / 0.125, D / 0.125);
+    // Normal maps contain vector data, not sRGB color. Match the base-map UVs.
+    this.gravelNormalTexture.colorSpace = THREE.NoColorSpace;
+    this.gravelNormalTexture.wrapS = THREE.RepeatWrapping;
+    this.gravelNormalTexture.wrapT = THREE.RepeatWrapping;
+    this.gravelNormalTexture.repeat.copy(this.gravelTexture.repeat);
     const floorMat = new THREE.MeshStandardMaterial({
-      color: 0xd2b48c, // Sand color
+      color: 0xffffff,
+      map: this.gravelTexture,
+      normalMap: this.gravelNormalTexture,
       roughness: 0.85,
       metalness: 0.05
     });
@@ -202,9 +228,6 @@ export class AquariumScene {
     ceiling.position.set(0, H / 2, -D / 2);
     this.group.add(ceiling);
 
-    // 4. Underwater Coral & Rock Formations (Multi-depth)
-    this.buildRocks(W, H, D);
-
     // 5. Sunken Driftwood Log (models/log.glb)
     this.buildLog(W, H, D);
 
@@ -215,77 +238,13 @@ export class AquariumScene {
     this.buildBubbles(W, H, D);
   }
 
-  private buildRocks(W: number, H: number, _D: number): void {
-    const rockMat = new THREE.MeshStandardMaterial({
-      color: 0x424e56,
-      roughness: 0.85,
-      metalness: 0.1
-    });
-
-    const coralMat = new THREE.MeshStandardMaterial({
-      color: 0xd9536f,
-      emissive: 0x331018,
-      roughness: 0.6,
-      metalness: 0.1
-    });
-
-    // Rock cluster 1: Left midground (delicate ~6cm rock)
-    const rock1Geo = new THREE.DodecahedronGeometry(0.028, 1);
-    rock1Geo.scale(1.3, 0.7, 0.9);
-    const rock1 = new THREE.Mesh(rock1Geo, rockMat);
-    rock1.position.set(-W * 0.22, -H / 2 + 0.015, -0.38);
-    rock1.castShadow = true;
-    rock1.receiveShadow = true;
-    this.group.add(rock1);
-
-    // Miniature coral branch on rock 1
-    const coral1Geo = new THREE.CylinderGeometry(0.004, 0.008, 0.035, 8);
-    const coral1 = new THREE.Mesh(coral1Geo, coralMat);
-    coral1.position.set(-W * 0.21, -H / 2 + 0.045, -0.37);
-    coral1.castShadow = true;
-    this.group.add(coral1);
-
-    // Rock cluster 2: Right deep midground (~7.5cm rock)
-    const rock2Geo = new THREE.DodecahedronGeometry(0.036, 1);
-    rock2Geo.scale(1.3, 0.8, 1.0);
-    const rock2 = new THREE.Mesh(rock2Geo, rockMat);
-    rock2.position.set(W * 0.24, -H / 2 + 0.022, -0.55);
-    rock2.castShadow = true;
-    rock2.receiveShadow = true;
-    this.group.add(rock2);
-
-    // Miniature scattered river stones
-    const pebble1 = new THREE.Mesh(new THREE.DodecahedronGeometry(0.015, 0), rockMat);
-    pebble1.scale.set(1.4, 0.6, 1.0);
-    pebble1.position.set(-W * 0.10, -H / 2 + 0.008, -0.32);
-    this.group.add(pebble1);
-
-    const pebble2 = new THREE.Mesh(new THREE.DodecahedronGeometry(0.018, 0), rockMat);
-    pebble2.scale.set(1.2, 0.7, 0.9);
-    pebble2.position.set(W * 0.08, -H / 2 + 0.01, -0.42);
-    this.group.add(pebble2);
-
-    const pebble3 = new THREE.Mesh(new THREE.DodecahedronGeometry(0.012, 0), rockMat);
-    pebble3.scale.set(1.1, 0.5, 1.0);
-    pebble3.position.set(W * 0.16, -H / 2 + 0.006, -0.28);
-    this.group.add(pebble3);
-
-    // Rock cluster 3: Delicate background reef arch (z = -0.70m)
-    const archGeo = new THREE.TorusGeometry(0.045, 0.012, 8, 24, Math.PI);
-    const arch = new THREE.Mesh(archGeo, rockMat);
-    arch.position.set(0, -H / 2 + 0.012, -0.70);
-    arch.rotation.z = Math.PI;
-    arch.receiveShadow = true;
-    this.group.add(arch);
-  }
-
-  private buildLog(W: number, H: number, _D: number): void {
+  private buildLog(W: number, H: number, D: number): void {
     this.customModelLoader
       .loadGLTF('/models/log.glb')
       .then((template) => {
         const logGroup = this.customModelLoader.instantiateDecoration(template, {
           targetScale: 0.22, // ~22cm long sunken driftwood log
-          position: new THREE.Vector3(W * 0.04, -H / 2, -0.48),
+          position: new THREE.Vector3(W * 0.04, -H / 2, -D * 0.56),
           rotation: new THREE.Euler(0, 0.45, 0)
         });
         this.customDecorations.push(logGroup);
@@ -296,7 +255,7 @@ export class AquariumScene {
       });
   }
 
-  private buildPlants(W: number, H: number, _D: number): void {
+  private buildPlants(W: number, H: number, D: number): void {
     Promise.all([
       this.customModelLoader.loadGLTF('/models/plant01.glb'),
       this.customModelLoader.loadGLTF('/models/plant02.glb')
@@ -304,21 +263,16 @@ export class AquariumScene {
       .then(([templatePlant01, templatePlant02]) => {
         // Natural distributed placement of custom 3D plants across seabed
         const plantConfigs = [
-          // Left cluster around and behind rock 1
-          { template: templatePlant01, x: -W * 0.30, z: -0.42, scale: 0.17, rotY: 0.5 },
-          { template: templatePlant02, x: -W * 0.23, z: -0.46, scale: 0.15, rotY: 2.1 },
-          { template: templatePlant01, x: -W * 0.36, z: -0.54, scale: 0.14, rotY: 1.2 },
-          { template: templatePlant02, x: -W * 0.28, z: -0.62, scale: 0.20, rotY: 3.7 },
+          // Left plant cluster
+          { template: templatePlant01, x: -W * 0.30, z: -D * 0.49, scale: 0.17, rotY: 0.5 },
+          { template: templatePlant02, x: -W * 0.28, z: -D * 0.73, scale: 0.20, rotY: 3.7 },
 
-          // Right cluster behind and beside log and rock 2
-          { template: templatePlant02, x: W * 0.28, z: -0.43, scale: 0.18, rotY: 4.2 },
-          { template: templatePlant01, x: W * 0.20, z: -0.55, scale: 0.15, rotY: 0.8 },
-          { template: templatePlant01, x: W * 0.36, z: -0.50, scale: 0.18, rotY: 2.7 },
-          { template: templatePlant02, x: W * 0.32, z: -0.64, scale: 0.16, rotY: 5.1 },
+          // Right plant cluster beside the log
+          { template: templatePlant02, x: W * 0.28, z: -D * 0.51, scale: 0.18, rotY: 4.2 },
+          { template: templatePlant02, x: W * 0.32, z: -D * 0.75, scale: 0.16, rotY: 5.1 },
 
-          // Deep midground framing distant reef arch
-          { template: templatePlant01, x: -W * 0.09, z: -0.67, scale: 0.13, rotY: 1.6 },
-          { template: templatePlant02, x: W * 0.09, z: -0.69, scale: 0.14, rotY: 3.4 }
+          // Back plants frame the open swimming area
+          { template: templatePlant02, x: W * 0.09, z: -D * 0.81, scale: 0.14, rotY: 3.4 }
         ];
 
         for (const cfg of plantConfigs) {
@@ -376,21 +330,10 @@ export class AquariumScene {
     const H = this.screen.height;
     const D = this.depth;
 
-    // Helper to spawn a fallback fish inside tank bounds if model loading fails
-    const spawnFallback = (species: FishSpecies, scale: number, maxSpeed: number, maxForce: number) => {
-      const pos = new THREE.Vector3(
-        (Math.random() - 0.5) * (W * 0.75),
-        (Math.random() - 0.5) * (H * 0.65),
-        -0.18 - Math.random() * (D * 0.65)
-      );
-      const fish = new Fish({ species, scale, maxSpeed, maxForce }, pos);
-      this.boids.addFish(fish);
-      this.group.add(fish.group);
-    };
-
     // Helper to spawn custom 3D fish from loaded template
     const spawnCustomFishGroup = (
       template: any,
+      schoolId: string,
       count: number,
       targetLength: number,
       forwardAxis: '+X' | '-X' | '+Z' | '-Z',
@@ -405,11 +348,12 @@ export class AquariumScene {
         const pos = new THREE.Vector3(
           (Math.random() - 0.5) * (W * 0.75),
           (Math.random() - 0.5) * (H * 0.65),
-          -0.18 - Math.random() * (D * 0.65)
+          -0.10 - Math.random() * (D - 0.20)
         );
         const fish = new Fish(
           {
             species: FishSpecies.Custom,
+            schoolId,
             scale: 1.0,
             maxSpeed,
             maxForce,
@@ -424,43 +368,34 @@ export class AquariumScene {
       }
     };
 
-    // 1. Custom 3D Fish 1 (models/fish01.glb - 5 fish)
+    // 1. Fish 1 school (models/fish01.glb - 4 fish)
     this.customModelLoader
       .loadGLTF('/models/fish01.glb')
       .then((template) => {
-        spawnCustomFishGroup(template, 5, 0.055, '-X', 0.15, 0.38);
+        spawnCustomFishGroup(template, 'fish01', 4, 0.055, '-X', 0.15, 0.38);
       })
       .catch((err) => {
-        console.warn('[AquariumScene] fish01.glb load fallback:', err);
-        for (let i = 0; i < 5; i++) {
-          spawnFallback(FishSpecies.YellowTang, 1.1, 0.15, 0.38);
-        }
+        console.warn('[AquariumScene] fish01.glb could not load; no procedural substitute will be spawned:', err);
       });
 
-    // 2. Custom 3D Fish 2 (models/fish02.glb - 5 fish)
+    // 2. Fish 2 school (models/fish02.glb - 4 fish)
     this.customModelLoader
       .loadGLTF('/models/fish02.glb')
       .then((template) => {
-        spawnCustomFishGroup(template, 5, 0.058, '-X', 0.16, 0.40);
+        spawnCustomFishGroup(template, 'fish02', 4, 0.058, '-X', 0.16, 0.40);
       })
       .catch((err) => {
-        console.warn('[AquariumScene] fish02.glb load fallback:', err);
-        for (let i = 0; i < 5; i++) {
-          spawnFallback(FishSpecies.BlueTang, 1.15, 0.16, 0.4);
-        }
+        console.warn('[AquariumScene] fish02.glb could not load; no procedural substitute will be spawned:', err);
       });
 
-    // 3. Custom 3D Fish 3 (models/fish03.glb - 6 fish)
+    // 3. Fish 3 school (models/fish03.glb - 5 fish)
     this.customModelLoader
       .loadGLTF('/models/fish03.glb')
       .then((template) => {
-        spawnCustomFishGroup(template, 6, 0.056, '-X', 0.16, 0.39);
+        spawnCustomFishGroup(template, 'fish03', 5, 0.056, '-X', 0.16, 0.39);
       })
       .catch((err) => {
-        console.warn('[AquariumScene] fish03.glb load fallback:', err);
-        for (let i = 0; i < 6; i++) {
-          spawnFallback(FishSpecies.Clownfish, 1.0, 0.14, 0.35);
-        }
+        console.warn('[AquariumScene] fish03.glb could not load; no procedural substitute will be spawned:', err);
       });
   }
 
@@ -515,6 +450,7 @@ export class AquariumScene {
     options: CustomFishOptions = {}
   ): Promise<number> {
     const template = await this.customModelLoader.loadGLTF(urlOrBlob);
+    const schoolId = `custom-school-${this.nextCustomSchoolId++}`;
     const W = this.screen.width;
     const H = this.screen.height;
     const D = this.depth;
@@ -524,11 +460,12 @@ export class AquariumScene {
       const pos = new THREE.Vector3(
         (Math.random() - 0.5) * (W * 0.7),
         (Math.random() - 0.5) * (H * 0.6),
-        -0.20 - Math.random() * (D * 0.6)
+        -0.10 - Math.random() * (D - 0.20)
       );
       const fish = new Fish(
         {
           species: FishSpecies.Custom,
+          schoolId,
           scale: 1.0,
           maxSpeed: options.maxSpeed ?? 0.16,
           maxForce: options.maxForce ?? 0.38,

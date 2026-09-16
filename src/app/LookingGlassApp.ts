@@ -266,8 +266,7 @@ export class LookingGlassApp {
     window.addEventListener('resize', this.onWindowResize);
     document.addEventListener('fullscreenchange', this.onFullscreenChange);
 
-    // Aquarium interactive events (tap glass & feed fish)
-    this.canvas.addEventListener('click', this.onCanvasClick);
+    // Aquarium feeding events; tap-on-glass interaction is disabled.
     this.canvas.addEventListener('contextmenu', this.onCanvasContextMenu);
     window.addEventListener('keydown', this.onKeyDown);
   }
@@ -285,14 +284,6 @@ export class LookingGlassApp {
       this.renderer.setSize(window.innerWidth, window.innerHeight);
       this.calibrationManager.updateViewport(window.innerWidth, window.innerHeight);
     });
-  };
-
-  private onCanvasClick = (e: MouseEvent): void => {
-    // Only primary left button
-    if (e.button !== 0) return;
-    if (this.sceneManager.getCurrentSceneType() === SceneType.Aquarium) {
-      this.sceneManager.aquariumScene.interactions.tapGlass(this.mouseNormX, this.mouseNormY);
-    }
   };
 
   private onCanvasContextMenu = (e: MouseEvent): void => {
@@ -556,7 +547,6 @@ export class LookingGlassApp {
     window.removeEventListener('pointermove', this.onMouseMove);
     window.removeEventListener('resize', this.onWindowResize);
     document.removeEventListener('fullscreenchange', this.onFullscreenChange);
-    this.canvas.removeEventListener('click', this.onCanvasClick);
     this.canvas.removeEventListener('contextmenu', this.onCanvasContextMenu);
     window.removeEventListener('keydown', this.onKeyDown);
 

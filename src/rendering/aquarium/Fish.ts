@@ -5,6 +5,7 @@
  */
 
 import * as THREE from 'three';
+import { FishSwimShader } from './FishSwimShader';
 
 export enum FishSpecies {
   Clownfish = 'Clownfish',
@@ -16,6 +17,8 @@ export enum FishSpecies {
 
 export interface FishConfig {
   species: FishSpecies;
+  /** Independent flock identity; imported models can share the Custom species. */
+  schoolId?: string;
   scale: number;
   maxSpeed: number;
   maxForce: number;
@@ -30,6 +33,7 @@ export interface FishConfig {
 export class Fish {
   public readonly group: THREE.Group;
   public readonly species: FishSpecies;
+  public readonly schoolId: string;
 
   // Boids physics state
   public position: THREE.Vector3;
@@ -41,6 +45,7 @@ export class Fish {
   // Custom model components
   private customModelRoot: THREE.Group | null = null;
   private animationMixer: THREE.AnimationMixer | null = null;
+  private swimShader: FishSwimShader | null = null;
 
   // Static reusable math objects for strictly upright orientation calculation
   private static readonly WORLD_UP: THREE.Vector3 = new THREE.Vector3(0, 1, 0);
@@ -62,6 +67,7 @@ export class Fish {
 
   constructor(config: FishConfig, initialPosition: THREE.Vector3) {
     this.species = config.species;
+    this.schoolId = config.schoolId ?? config.species;
     this.maxSpeed = config.maxSpeed;
     this.maxForce = config.maxForce;
 
@@ -82,6 +88,7 @@ export class Fish {
       this.customModelRoot = config.customModelRoot;
       this.animationMixer = config.animationMixer ?? null;
       this.group.add(this.customModelRoot);
+      this.swimShader = new FishSwimShader(this.customModelRoot, this.animPhase);
     } else {
       this.buildMesh(config.scale);
     }
@@ -365,7 +372,7 @@ export class Fish {
     const speedRatio = currentSpeed / this.maxSpeed;
 
     // Dynamic swimming animation for procedural fish (tail wags, pectoral fins flutter)
-    // Custom imported models do NOT have body wiggle applied to prevent jitter
+    this.swimShader?.update(deltaTime, speedRatio);
     if (!this.customModelRoot) {
       const wagFreq = this.animFrequency * (0.8 + speedRatio * 1.5);
       const wagAngle = Math.sin(timeSeconds * wagFreq + this.animPhase) * (0.35 + speedRatio * 0.3);
@@ -381,6 +388,7 @@ export class Fish {
   }
 
   public dispose(): void {
+    this.swimShader?.dispose();
     if (this.animationMixer) {
       this.animationMixer.stopAllAction();
       this.animationMixer = null;
@@ -398,4 +406,3 @@ export class Fish {
     });
   }
 }
-

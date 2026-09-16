@@ -32,6 +32,8 @@ export class CausticEffect {
     this.screen = screen;
     this.depth = depth;
 
+    // Temporarily disable the light rays while refining the aquarium scene.
+    this.shaftsGroup.visible = false;
     this.group.add(this.shaftsGroup);
     this.build();
   }
@@ -50,7 +52,7 @@ export class CausticEffect {
     if (this.ceilingMaterial) {
       this.ceilingMaterial.uniforms.uTime.value = timeSeconds;
     }
-    if (this.shaftMaterial) {
+    if (this.shaftsGroup.visible && this.shaftMaterial) {
       this.shaftMaterial.uniforms.uTime.value = timeSeconds;
     }
   }
@@ -306,4 +308,3 @@ export class CausticEffect {
     }
   }
 }
-
