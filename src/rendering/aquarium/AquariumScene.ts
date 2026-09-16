@@ -238,7 +238,7 @@ export class AquariumScene {
 
     // Supplied decorations frame the foreground swimming area.
     for (const decoration of [
-      { file: 'diver.glb', size: 0.12, x: -W * 0.18, z: -D * 0.34, yaw: 0.25 },
+      { file: 'diver.glb', size: 0.06, x: -W * 0.18, z: -D * 0.34, yaw: 0.25 },
       { file: 'rock01.glb', size: 0.11, x: W * 0.27, z: -D * 0.30, yaw: -0.4 }
     ]) {
       this.customModelLoader.loadGLTF(`/models/${decoration.file}`)
