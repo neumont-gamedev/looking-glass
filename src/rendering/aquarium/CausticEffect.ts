@@ -268,6 +268,7 @@ export class CausticEffect {
     });
 
     this.ceilingCausticsMesh = new THREE.Mesh(ceilingGeo, this.ceilingMaterial);
+    this.ceilingCausticsMesh.visible = false;
     this.ceilingCausticsMesh.rotation.x = Math.PI / 2;
     this.ceilingCausticsMesh.position.set(0, H / 2 - 0.001, -D / 2);
     this.group.add(this.ceilingCausticsMesh);

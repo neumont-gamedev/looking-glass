@@ -54,6 +54,7 @@ export class AquariumScene {
   private plantDecorations: PlantDecoration[] = [];
   private customDecorations: THREE.Group[] = [];
   private nextCustomSchoolId = 1;
+  private environmentGeneration = 0;
 
   constructor(screen: ScreenGeometry) {
     this.screen = screen;
@@ -142,6 +143,7 @@ export class AquariumScene {
   }
 
   private buildEnvironment(): void {
+    const generation = ++this.environmentGeneration;
     const W = this.screen.width;
     const H = this.screen.height;
     const D = this.depth;
@@ -172,8 +174,10 @@ export class AquariumScene {
       color: 0xffffff,
       map: this.gravelTexture,
       normalMap: this.gravelNormalTexture,
-      roughness: 0.85,
-      metalness: 0.05
+      normalScale: new THREE.Vector2(2, 2),
+      // Wet gravel catches highlights without behaving like metal.
+      roughness: 0.45,
+      metalness: 0
     });
     const floor = new THREE.Mesh(floorGeo, floorMat);
     floor.rotation.x = -Math.PI / 2;
@@ -224,12 +228,33 @@ export class AquariumScene {
       opacity: 0.7
     });
     const ceiling = new THREE.Mesh(ceilingGeo, ceilingMat);
+    ceiling.visible = false;
     ceiling.rotation.x = Math.PI / 2;
     ceiling.position.set(0, H / 2, -D / 2);
     this.group.add(ceiling);
 
     // 5. Sunken Driftwood Log (models/log.glb)
     this.buildLog(W, H, D);
+
+    // Supplied decorations frame the foreground swimming area.
+    for (const decoration of [
+      { file: 'diver.glb', size: 0.12, x: -W * 0.18, z: -D * 0.34, yaw: 0.25 },
+      { file: 'rock01.glb', size: 0.11, x: W * 0.27, z: -D * 0.30, yaw: -0.4 }
+    ]) {
+      this.customModelLoader.loadGLTF(`/models/${decoration.file}`)
+        .then((template) => {
+          // A viewport rebuild may finish before this asynchronous load does.
+          if (generation !== this.environmentGeneration) return;
+          const model = this.customModelLoader.instantiateDecoration(template, {
+            targetScale: decoration.size,
+            position: new THREE.Vector3(decoration.x, -H / 2, decoration.z),
+            rotation: new THREE.Euler(0, decoration.yaw, 0)
+          });
+          this.customDecorations.push(model);
+          this.group.add(model);
+        })
+        .catch((error) => console.warn(`[AquariumScene] ${decoration.file} load error:`, error));
+    }
 
     // 6. Lush Aquatic 3D Plants (models/plant01.glb & models/plant02.glb)
     this.buildPlants(W, H, D);
