@@ -41,7 +41,7 @@ export class AquariumScene {
     (error) => console.warn('[AquariumScene] Gravel texture failed to load:', error)
   );
   private readonly gravelNormalTexture = new THREE.TextureLoader().load(
-    '/textures/gravel-normal.png',
+    '/textures/gravel-texture-normal02.png',
     undefined,
     undefined,
     (error) => console.warn('[AquariumScene] Gravel normal map failed to load:', error)

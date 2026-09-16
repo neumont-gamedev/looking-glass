@@ -94,3 +94,31 @@ test('school steering ignores other schools but still avoids collisions with the
   assert.ok(forceWithNeighbor('fish01', .06).distanceTo(alone) > .01);
   assert.ok(forceWithNeighbor('fish02', .02, 1.6).x < alone.x);
 });
+
+test('isolated fish accelerate and slow smoothly across randomized swim intervals', () => {
+  const { Fish, FishSpecies } = require('../src/rendering/aquarium/Fish.ts');
+  const originalRandom = Math.random;
+  Math.random = () => .5;
+  let swimmer;
+  try {
+    swimmer = new Fish({ species: FishSpecies.Custom, scale: 1, maxSpeed: .16,
+      maxForce: .4, customModelRoot: fish(new THREE.MeshStandardMaterial(),
+        new THREE.BoxGeometry(1, .4, .2)).root }, new THREE.Vector3());
+    swimmer.velocity.set(.064, 0, 0);
+    const speeds = [];
+    for (let step = 0; step < 360; step++) {
+      swimmer.update(1 / 60, step / 60);
+      speeds.push(swimmer.velocity.length());
+    }
+    assert.ok(speeds[60] < .07, 'initial slow cruise');
+    assert.ok(speeds[180] > .13, 'accelerates without neighboring fish');
+    assert.ok(speeds[330] < .07, 'returns to slow cruise');
+    for (let i = 1; i < speeds.length; i++) {
+      assert.ok(Math.abs(speeds[i] - speeds[i - 1]) < .004, 'no abrupt speed jump');
+      assert.ok(Number.isFinite(speeds[i]) && speeds[i] <= .16);
+    }
+  } finally {
+    Math.random = originalRandom;
+    swimmer?.dispose();
+  }
+});

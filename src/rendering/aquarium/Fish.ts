@@ -41,6 +41,10 @@ export class Fish {
   public acceleration: THREE.Vector3;
   public maxSpeed: number;
   public maxForce: number;
+  private readonly baseMaxSpeed: number;
+  private fastSwimming = false;
+  private speedIntervalRemaining = 0;
+  private targetSpeedRatio = 0.4;
 
   // Custom model components
   private customModelRoot: THREE.Group | null = null;
@@ -69,6 +73,11 @@ export class Fish {
     this.species = config.species;
     this.schoolId = config.schoolId ?? config.species;
     this.maxSpeed = config.maxSpeed;
+    this.baseMaxSpeed = config.maxSpeed;
+    this.chooseSpeedInterval();
+    // Start partway through independent intervals so the school does not pulse in unison.
+    this.speedIntervalRemaining *= Math.random();
+    this.maxSpeed *= this.targetSpeedRatio;
     this.maxForce = config.maxForce;
 
     this.position = initialPosition.clone();
@@ -81,6 +90,7 @@ export class Fish {
     this.acceleration = new THREE.Vector3();
 
     this.group = new THREE.Group();
+    this.group.scale.setScalar(0.5);
     this.tailPivot = new THREE.Group();
     this.animPhase = Math.random() * Math.PI * 2;
 
@@ -320,14 +330,37 @@ export class Fish {
     this.acceleration.add(force);
   }
 
+  private chooseSpeedInterval(): void {
+    // Slow cruises last 2.5–3.5 seconds; faster bursts last 1.5–2.5 seconds.
+    this.speedIntervalRemaining = (this.fastSwimming ? 1.5 : 2.5) + Math.random();
+    this.targetSpeedRatio = this.fastSwimming
+      ? 0.8 + Math.random() * 0.2
+      : 0.3 + Math.random() * 0.2;
+  }
+
   public update(deltaTime: number, timeSeconds: number): void {
+    this.speedIntervalRemaining -= deltaTime;
+    while (this.speedIntervalRemaining <= 0) {
+      const overshoot = -this.speedIntervalRemaining;
+      this.fastSwimming = !this.fastSwimming;
+      this.chooseSpeedInterval();
+      this.speedIntervalRemaining -= overshoot;
+    }
+    // Smooth the speed ceiling; boid steering uses this same speed on the next step.
+    const speedBlend = 1 - Math.exp(-deltaTime / 0.4);
+    this.maxSpeed += (this.baseMaxSpeed * this.targetSpeedRatio - this.maxSpeed) * speedBlend;
     // Limit vertical component of physical velocity so fish swim predominantly horizontally
     const maxVerticalSpeed = this.maxSpeed * Math.sin(Fish.MAX_PITCH_RAD);
     this.velocity.y = THREE.MathUtils.clamp(this.velocity.y, -maxVerticalSpeed, maxVerticalSpeed);
 
     // Integrate physics
     this.velocity.addScaledVector(this.acceleration, deltaTime);
-    this.velocity.clampLength(0.02, this.maxSpeed);
+    // Propulsion lets an isolated fish accelerate too, while preserving steering direction.
+    const speed = this.velocity.length();
+    if (speed > 0) {
+      this.velocity.setLength(Math.min(this.maxSpeed,
+        speed + (this.maxSpeed - speed) * speedBlend));
+    }
     this.position.addScaledVector(this.velocity, deltaTime);
     this.acceleration.set(0, 0, 0);
 
@@ -369,7 +402,7 @@ export class Fish {
     }
 
     const currentSpeed = this.velocity.length();
-    const speedRatio = currentSpeed / this.maxSpeed;
+    const speedRatio = currentSpeed / this.baseMaxSpeed;
 
     // Dynamic swimming animation for procedural fish (tail wags, pectoral fins flutter)
     this.swimShader?.update(deltaTime, speedRatio);
