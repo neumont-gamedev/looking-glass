@@ -51,7 +51,7 @@ export class AquariumScene {
   // Environment elements
   private bubbles: THREE.Points | null = null;
   private diverLight: THREE.PointLight | null = null;
-  private readonly diverLightBaseIntensity = 0.0225;
+  private readonly diverLightBaseIntensity = 0.045;
   private bubbleVelocities: Float32Array | null = null;
   private bubbleCount: number = 180;
   private plantDecorations: PlantDecoration[] = [];
@@ -461,10 +461,10 @@ export class AquariumScene {
 
   public update(deltaTimeSeconds: number, timeSeconds: number): void {
     if (this.diverLight) {
-      // Two rates of continuous value noise: slow variation with a subtle flutter.
-      const noise = 0.75 * this.lightNoise(timeSeconds * 0.7)
-        + 0.25 * this.lightNoise(timeSeconds * 2.3 + 17);
-      this.diverLight.intensity = this.diverLightBaseIntensity * (0.7 + noise * 0.6);
+      // Faster continuous noise with a stronger flutter and 30–170% intensity range.
+      const noise = 0.75 * this.lightNoise(timeSeconds * 1.4)
+        + 0.25 * this.lightNoise(timeSeconds * 4.6 + 17);
+      this.diverLight.intensity = this.diverLightBaseIntensity * (0.3 + noise * 1.4);
     }
     this.planarCaustics.update(this.group, timeSeconds);
     // 1. Update aquatic plant sway with gentle current

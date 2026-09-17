@@ -1,8 +1,12 @@
-# Screenshots Directory
+# Screenshots
 
-Drop your screenshots here using the filenames referenced in the root `README.md`:
+Optional screenshots can be added here. The README does not currently embed screenshots because none are checked in.
 
-- `screenshot_aquarium.png`: Virtual Aquarium scene showing 3D fish flocking and underwater plants
-- `screenshot_model_viewer.png`: Model Viewer with metric 1cm/10cm grid background
-- `screenshot_calibration.png`: Guided display calibration wizard & 3D wireframe box
-- `screenshot_tracking.png`: Real-time face tracking PiP webcam overlay with facial landmark mesh
+Suggested captures:
+
+- `screenshot_aquarium.png`: fish, diver, gravel, and caustics.
+- `screenshot_model_viewer.png`: model and shared slider controls.
+- `screenshot_calibration.png`: grid colors and distance-label toggle.
+- `screenshot_tracking.png`: performance HUD and webcam debug view, using a consenting participant.
+
+Only add actual screenshots from the current app, and update README links when adding them.

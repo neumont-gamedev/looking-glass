@@ -43,7 +43,7 @@ Looking Glass uses a right-handed Cartesian coordinate system in metric units (m
 
 ## Physical Model & Geometry
 
-Let the physical monitor have:
+Let the physical viewport aperture have (derived from the full monitor dimensions and browser viewport size):
 - Width: $W$ (in meters)
 - Height: $H$ (in meters)
 
@@ -106,12 +106,12 @@ When projecting an object at depth $D$ behind the screen ($Z = -D$), the screen 
 $$\text{Size}_{\text{NDC}} \propto \frac{Z_e}{D + Z_e}$$
 As the viewer moves closer to the screen ($Z_e$ decreases), the ratio $\frac{Z_e}{D + Z_e}$ actually **decreases**. This means the object occupies *fewer pixels on the monitor* (the virtual FOV through the aperture widens faster than the camera approaches the object). While this is mathematically what passes through a rigid aperture on an infinite plane, to a human observer looking at a physical desktop monitor, this creates a counter-intuitive **reverse dolly-zoom / Hitchcock vertigo effect**—leaning in feels like the virtual world is retreating!
 
-#### The Natural Approach Mode (Default)
+#### Legacy Natural Approach Mode (not exposed in the UI)
 To provide intuitive depth perception matching human visual expectations, Looking Glass anchors the base aperture scale to the viewer's calibrated resting distance ($Z_{\text{ref}}$):
 $$\text{scale} = \frac{n}{Z_{\text{ref}}}$$
 With this scaling, the screen NDC coordinate size is proportional to:
 $$\text{Size}_{\text{NDC}} \propto \frac{Z_{\text{ref}}}{D + Z_e}$$
-Now, as the viewer leans forward ($Z_e$ decreases), virtual objects **naturally enlarge on screen** by $+20\text{--}30\%$, while lateral ($X, Y$) off-axis parallax remains $100\%$ authentic. Users can toggle between **Natural Approach** and **Fixed Aperture** in Settings.
+With this alternative, objects enlarge as the viewer approaches, but the projection no longer represents a fixed physical screen aperture when the viewer leaves the reference distance. The current app uses **Fixed Aperture**; settings loading normalizes the depth mode to `aperture`. The legacy `natural` calculation remains in the math API, without a UI toggle.
 
 ### 3. Moving Upwards ($Y_e > 0$)
 - $top$ and $bottom$ shift downwards, allowing the viewer to look down upon the top surface of objects in the diorama.

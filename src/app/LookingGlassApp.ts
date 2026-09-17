@@ -130,6 +130,7 @@ export class LookingGlassApp {
         onDistanceLabelsChange: (visible) => this.sceneManager.demoScene.setDistanceLabelsVisible(visible),
         onCalibrationGridColorChange: (color) => this.sceneManager.demoScene.setCalibrationGridColor(color),
         onFeedFish: () => this.handleFeedFish(),
+        onAquariumLightChange: (enabled) => this.sceneManager.setAquariumLightEnabled(enabled),
         onToggleDebugHud: (visible) => {
           this.sceneManager.demoScene.setAxesVisible(visible);
           this.statusPanel.setVisible(visible);
@@ -271,6 +272,7 @@ export class LookingGlassApp {
     document.addEventListener('fullscreenchange', this.onFullscreenChange);
 
     // Aquarium feeding events; tap-on-glass interaction is disabled.
+    this.canvas.addEventListener('click', this.onCanvasClick);
     this.canvas.addEventListener('contextmenu', this.onCanvasContextMenu);
     window.addEventListener('keydown', this.onKeyDown);
   }
@@ -288,6 +290,13 @@ export class LookingGlassApp {
       this.renderer.setSize(window.innerWidth, window.innerHeight);
       this.calibrationManager.updateViewport(window.innerWidth, window.innerHeight);
     });
+  };
+
+  private onCanvasClick = (e: MouseEvent): void => {
+    const bounds = this.canvas.getBoundingClientRect();
+    if (bounds.width <= 0) return;
+    const normX = ((e.clientX - bounds.left) / bounds.width) * 2 - 1;
+    this.handleFeedFish(Math.max(-1, Math.min(1, normX)));
   };
 
   private onCanvasContextMenu = (e: MouseEvent): void => {
@@ -323,9 +332,9 @@ export class LookingGlassApp {
     }
   };
 
-  public handleFeedFish(): void {
+  public handleFeedFish(normX = this.mouseNormX): void {
     if (this.sceneManager.getCurrentSceneType() === SceneType.Aquarium) {
-      this.sceneManager.aquariumScene.interactions.dropFood(this.mouseNormX);
+      this.sceneManager.aquariumScene.interactions.dropFood(normX);
     }
   }
 
@@ -561,6 +570,7 @@ export class LookingGlassApp {
     window.removeEventListener('pointermove', this.onMouseMove);
     window.removeEventListener('resize', this.onWindowResize);
     document.removeEventListener('fullscreenchange', this.onFullscreenChange);
+    this.canvas.removeEventListener('click', this.onCanvasClick);
     this.canvas.removeEventListener('contextmenu', this.onCanvasContextMenu);
     window.removeEventListener('keydown', this.onKeyDown);
 

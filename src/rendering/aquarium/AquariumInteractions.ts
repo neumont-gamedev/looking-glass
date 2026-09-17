@@ -16,6 +16,8 @@ interface Shockwave {
   duration: number;
 }
 
+const FOOD_PELLET_RADIUS = 0.00125; // 1.25 mm; one quarter of the original radius.
+
 export class AquariumInteractions {
   public readonly group: THREE.Group = new THREE.Group();
   private boids: BoidsSimulation;
@@ -47,7 +49,7 @@ export class AquariumInteractions {
     });
 
     // Food assets
-    this.pelletGeo = new THREE.SphereGeometry(0.005, 8, 8);
+    this.pelletGeo = new THREE.SphereGeometry(FOOD_PELLET_RADIUS, 8, 8);
     this.pelletMat = new THREE.MeshStandardMaterial({
       color: 0xcc8833,
       roughness: 0.7,
@@ -91,8 +93,8 @@ export class AquariumInteractions {
   public dropFood(normX: number): void {
     const xMeters = (normX * this.screen.width) / 2;
     const yMeters = this.screen.height / 2 - 0.02; // Dropped right below surface
-    // Random depth between front and mid-tank
-    const zMeters = -0.10 - Math.random() * Math.max(0, this.boids.depth - 0.22);
+    // Drop near the front glass: 3–7 cm behind the screen, plus 1 cm scatter.
+    const zMeters = -0.03 - Math.random() * 0.04;
 
     // Drop 3-4 pellets with slight scatter
     const count = Math.floor(Math.random() * 2) + 2;
@@ -101,7 +103,7 @@ export class AquariumInteractions {
       const pos = new THREE.Vector3(
         xMeters + (Math.random() - 0.5) * 0.04,
         yMeters + (Math.random() - 0.5) * 0.02,
-        zMeters + (Math.random() - 0.5) * 0.04
+        zMeters + (Math.random() - 0.5) * 0.02
       );
 
       const pellet: FoodPellet = {
@@ -112,7 +114,7 @@ export class AquariumInteractions {
           -0.04 - Math.random() * 0.02, // Sinks at 4-6 cm/sec
           (Math.random() - 0.5) * 0.01
         ),
-        radius: 0.005
+        radius: FOOD_PELLET_RADIUS
       };
 
       this.foodPellets.push(pellet);

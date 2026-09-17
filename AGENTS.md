@@ -1185,3 +1185,15 @@ The project succeeds when a viewer can stand or sit in front of a normal compute
 The strongest reaction should be:
 
 > "It feels like I can look around the objects inside the monitor."
+
+## Current implementation notes (September 2026)
+
+The implementation has progressed beyond the initial plan above. Consult README.md for current user controls and docs/tracking-calibration.md for calibration behavior.
+
+- Fixed-aperture off-axis projection is the active depth mode; full-monitor dimensions and viewport aperture are separate.
+- Worker tracking and a 60 FPS render target are decoupled; hardware performance is not guaranteed.
+- Aquarium clicks feed fish; glass-tap effects and the feed button are disabled. Use supplied decoration models.
+- Aquarium Light on toggles directional intensity between 2.0 and 0.3, retaining its state during scene switches.
+- Plain Tab toggles fullscreen. Settings and Model Viewer use shared slider styling.
+- FOV calibration takes a measured camera-to-eye distance; Center & Distance is a separate neutral-pose calibration.
+- Run npm test and npm run build before release. Firebase hosting deploys both configured sites.

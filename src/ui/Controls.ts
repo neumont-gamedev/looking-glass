@@ -32,6 +32,7 @@ export interface ControlsCallbacks {
   onDistanceLabelsChange?: (visible: boolean) => void;
   onCalibrationGridColorChange?: (color: string) => void;
   onFeedFish?: () => void;
+  onAquariumLightChange?: (enabled: boolean) => void;
   onToggleDebugHud?: (visible: boolean) => void;
   getCurrentRawPose?: () => ViewerPose | null;
   getBiometricDistance?: () => BiometricDistanceResult | null;
@@ -78,7 +79,6 @@ export class Controls {
   private debugPoseYEl: HTMLElement | null = null;
   private debugPoseZEl: HTMLElement | null = null;
   private debugHudBoxEl: HTMLElement | null = null;
-  private feedFishBtn: HTMLElement | null = null;
   private isDebugHudVisible: boolean = true;
 
   constructor(
@@ -168,14 +168,13 @@ export class Controls {
         </div>
       </div>
       <div class="topbar-actions">
-        <button class="btn btn-hud btn-sm" id="btn-feed-fish" title="Feed Fish (F)">Feed Fish</button>
         <button class="btn btn-hud btn-icon" id="btn-scene-menu" title="Scenes (Aquarium, Model Viewer, Calibration)">
-          <svg class="btn-svg-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+          <svg class="btn-svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 21 8v8l-9 5-9-5V8l9-5Z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg>
         </button>
         <button class="btn btn-hud btn-icon" id="btn-toggle-settings" title="Settings & Calibration (S)">
           <svg class="btn-svg-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         </button>
-        <button class="btn btn-hud btn-icon" id="btn-fullscreen" title="Toggle Fullscreen">
+        <button class="btn btn-hud btn-icon" id="btn-fullscreen" title="Toggle Fullscreen (Tab)">
           <svg class="btn-svg-icon" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
         </button>
       </div>
@@ -188,22 +187,14 @@ export class Controls {
     this.debugPoseYEl = this.topBar.querySelector('#debug-pose-y');
     this.debugPoseZEl = this.topBar.querySelector('#debug-pose-z');
     this.debugHudBoxEl = this.topBar.querySelector('#debug-hud-box');
-    this.feedFishBtn = this.topBar.querySelector('#btn-feed-fish');
 
     if (this.debugHudBoxEl) {
       this.debugHudBoxEl.style.display = this.isDebugHudVisible ? 'flex' : 'none';
     }
 
-    this.topBar.querySelector('#btn-feed-fish')?.addEventListener('click', () => {
-      if (this.callbacks.onFeedFish) this.callbacks.onFeedFish();
-    });
 
     this.topBar.querySelector('#btn-fullscreen')?.addEventListener('click', () => {
-      if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch((err) => console.warn(err));
-      } else {
-        document.exitFullscreen().catch((err) => console.warn(err));
-      }
+      this.toggleFullscreen();
     });
 
     document.addEventListener('fullscreenchange', () => {
@@ -275,6 +266,13 @@ export class Controls {
           </select>
         </div>
 
+        <div id="scene-aquarium-options" class="setting-group" style="display: ${currentScene === SceneType.Aquarium ? 'block' : 'none'};">
+          <label class="checkbox-row" for="check-aquarium-light">
+            <input type="checkbox" id="check-aquarium-light" checked>
+            <span>Light on</span>
+          </label>
+        </div>
+
         <div id="scene-calibration-options" class="setting-group" style="display: ${currentScene === SceneType.Debug ? 'block' : 'none'};">
           <label for="calibration-grid-color">Grid color</label>
           <select id="calibration-grid-color">
@@ -310,27 +308,18 @@ export class Controls {
             </select>
           </div>
 
-          <div class="setting-group">
-            <div class="setting-header">
-              <label for="slider-model-z">Depth</label>
-              <span id="val-model-z" class="slider-value">-25 cm</span>
-            </div>
+          <div class="slider-row">
+            <label for="slider-model-z">Depth: <span id="val-model-z">-25 cm</span></label>
             <input type="range" id="slider-model-z" min="-45" max="5" step="1" value="-25">
           </div>
 
-          <div class="setting-group">
-            <div class="setting-header">
-              <label for="slider-model-scale">Scale</label>
-              <span id="val-model-scale" class="slider-value">1.00×</span>
-            </div>
+          <div class="slider-row">
+            <label for="slider-model-scale">Scale: <span id="val-model-scale">1.00×</span></label>
             <input type="range" id="slider-model-scale" min="0.2" max="2.5" step="0.05" value="1.0">
           </div>
 
-          <div class="setting-group">
-            <div class="setting-header">
-              <label for="slider-model-rot">Rotation Y</label>
-              <span id="val-model-rot" class="slider-value">0°</span>
-            </div>
+          <div class="slider-row">
+            <label for="slider-model-rot">Rotation Y: <span id="val-model-rot">0°</span></label>
             <input type="range" id="slider-model-rot" min="0" max="360" step="1" value="0">
           </div>
 
@@ -366,19 +355,13 @@ export class Controls {
             </div>
           </div>
 
-          <div class="setting-group">
-            <div class="setting-header">
-              <label for="slider-light-rot-x">Light tilt X</label>
-              <span id="val-light-rot-x" class="slider-value">+10°</span>
-            </div>
+          <div class="slider-row">
+            <label for="slider-light-rot-x">Light tilt X: <span id="val-light-rot-x">+10°</span></label>
             <input type="range" id="slider-light-rot-x" min="-75" max="75" step="1" value="10">
           </div>
 
-          <div class="setting-group">
-            <div class="setting-header">
-              <label for="slider-light-rot-z">Light tilt Z</label>
-              <span id="val-light-rot-z" class="slider-value">-35°</span>
-            </div>
+          <div class="slider-row">
+            <label for="slider-light-rot-z">Light tilt Z: <span id="val-light-rot-z">-35°</span></label>
             <input type="range" id="slider-light-rot-z" min="-75" max="75" step="1" value="-35">
           </div>
         </div>
@@ -407,6 +390,9 @@ export class Controls {
       }
     });
 
+    this.scenePopover.querySelector('#check-aquarium-light')?.addEventListener('change', (event) => {
+      this.callbacks.onAquariumLightChange?.((event.target as HTMLInputElement).checked);
+    });
     this.scenePopover.querySelector('#check-distance-labels')?.addEventListener('change', (event) => {
       this.callbacks.onDistanceLabelsChange?.((event.target as HTMLInputElement).checked);
     });
@@ -414,15 +400,6 @@ export class Controls {
       this.callbacks.onCalibrationGridColorChange?.((event.target as HTMLSelectElement).value);
     });
 
-    const updateSliderFill = (slider: HTMLInputElement): void => {
-      const percent = 100 * (Number(slider.value) - Number(slider.min))
-        / (Number(slider.max) - Number(slider.min));
-      slider.style.setProperty('--slider-fill', `${percent}%`);
-    };
-    this.scenePopover.querySelectorAll<HTMLInputElement>('#scene-model-viewer-options input[type="range"]').forEach(slider => {
-      updateSliderFill(slider);
-      slider.addEventListener('input', () => updateSliderFill(slider));
-    });
 
     const modelZSlider = this.scenePopover.querySelector('#slider-model-z') as HTMLInputElement;
     const modelZVal = this.scenePopover.querySelector('#val-model-z') as HTMLElement;
@@ -474,7 +451,6 @@ export class Controls {
       if (!isChecked && this.callbacks.getModelCurrentRotationDeg && modelRotSlider && modelRotVal) {
         const currentDeg = Math.round(this.callbacks.getModelCurrentRotationDeg());
         modelRotSlider.value = currentDeg.toString();
-        updateSliderFill(modelRotSlider);
         modelRotVal.textContent = `${currentDeg}°`;
       }
       if (this.callbacks.onModelAutoRotateChange) {
@@ -618,11 +594,10 @@ export class Controls {
 
   public setScene(sceneType: SceneType): void {
     this.currentSceneType = sceneType;
+    const aquariumOptions = this.scenePopover?.querySelector('#scene-aquarium-options') as HTMLElement;
+    if (aquariumOptions) aquariumOptions.style.display = sceneType === SceneType.Aquarium ? 'block' : 'none';
     const calibrationOptions = this.scenePopover?.querySelector('#scene-calibration-options') as HTMLElement;
     if (calibrationOptions) calibrationOptions.style.display = sceneType === SceneType.Debug ? 'block' : 'none';
-    if (this.feedFishBtn) {
-      this.feedFishBtn.style.display = sceneType === SceneType.Aquarium ? '' : 'none';
-    }
     const modelOptions = this.scenePopover?.querySelector('#scene-model-viewer-options') as HTMLElement;
     if (modelOptions) {
       modelOptions.style.display = sceneType === SceneType.Diorama ? 'block' : 'none';
@@ -700,8 +675,20 @@ export class Controls {
     }
   }
 
+  private toggleFullscreen(): void {
+    const transition = document.fullscreenElement
+      ? document.exitFullscreen()
+      : document.documentElement.requestFullscreen();
+    transition.catch((error) => console.warn('Could not toggle fullscreen:', error));
+  }
+
   private setupEventListeners(): void {
     window.addEventListener('keydown', (e) => {
+      if (e.key === 'Tab' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        e.preventDefault();
+        if (!e.repeat) this.toggleFullscreen();
+        return;
+      }
       // Don't intercept hotkeys if typing in an input
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) {
         return;
@@ -826,6 +813,7 @@ export class Controls {
   private buildSettingsDrawer(): void {
     const settings = this.settingsManager.getSettings();
     const calibData = this.calibrationManager.getData();
+    const measuredDistanceCm = Math.min(150, Math.max(30, Math.round(calibData.viewingDistance * 100)));
 
     const isWebcamSelected = settings.inputMode === InputMode.Webcam ? 'selected' : '';
     const isMouseSelected = settings.inputMode === InputMode.Mouse ? 'selected' : '';
@@ -902,17 +890,24 @@ export class Controls {
 
         <div class="setting-group">
           <h4>Webcam Field of View</h4>
-          <div class="slider-row">
-            <label for="camera-fov">Horizontal FOV: <span id="camera-fov-value">${calibData.cameraHFOV.toFixed(1)}°</span></label>
-            <input type="range" id="camera-fov" min="30" max="120" step="0.1" value="${calibData.cameraHFOV}" />
+          <p class="setting-hint">Enter camera-to-eye distance. Face forward, hold still, then press Calibrate FOV.</p>
+          <div class="biometric-readout-card fov-calibration-card">
+            <div class="setting-hint">Horizontal FOV</div>
+            <div class="biometric-distance-display" id="camera-fov-value">${calibData.cameraHFOV.toFixed(1)}°</div>
+            <div class="slider-row">
+              <label for="camera-measured-distance">Camera-to-eye distance: <span id="camera-measured-distance-value">${measuredDistanceCm} cm (${(measuredDistanceCm / 2.54).toFixed(1)} in)</span></label>
+              <input type="range" id="camera-measured-distance" min="30" max="150" step="1" value="${measuredDistanceCm}" />
+            </div>
+            <button class="btn btn-primary" id="camera-fov-calibrate" title="Estimates FOV using camera-to-eye distance and assumed 63 mm pupil spacing. Recalibrate after changing cameras or capture modes.">Calibrate FOV</button>
+            <p class="status-note" id="camera-fov-feedback" role="status"></p>
           </div>
-          <p class="setting-hint">Face forward; hold still for 1 second.</p>
-          <label for="camera-measured-distance">Camera-to-eye distance (cm)</label>
-          <div class="fov-calibration-row">
-            <input type="number" id="camera-measured-distance" min="30" max="150" step="1" value="${Math.round(calibData.viewingDistance * 100)}" />
-            <button class="btn" id="camera-fov-calibrate" title="Estimates FOV using camera-to-eye distance and assumed 63 mm pupil spacing. Recalibrate after changing cameras or capture modes.">Estimate FOV</button>
-          </div>
-          <p class="status-note" id="camera-fov-feedback" role="status"></p>
+          <details class="advanced-calibration">
+            <summary>Advanced adjustment</summary>
+            <div class="slider-row">
+              <label for="camera-fov">Manual horizontal FOV</label>
+              <input type="range" id="camera-fov" min="30" max="120" step="0.1" value="${calibData.cameraHFOV}" />
+            </div>
+          </details>
         </div>
 
         <!-- Viewing Distance Section -->
@@ -994,13 +989,18 @@ export class Controls {
     this.settingsDrawer.querySelector('#camera-fov')?.addEventListener('input', (event) => {
       this.calibrationManager.setCameraHFOV(Number((event.target as HTMLInputElement).value));
     });
+    this.settingsDrawer.querySelector('#camera-measured-distance')?.addEventListener('input', (event) => {
+      const distanceCm = Number((event.target as HTMLInputElement).value);
+      const readout = this.settingsDrawer.querySelector('#camera-measured-distance-value');
+      if (readout) readout.textContent = `${distanceCm} cm (${(distanceCm / 2.54).toFixed(1)} in)`;
+    });
     this.settingsDrawer.querySelector('#camera-fov-calibrate')?.addEventListener('click', () => {
       const feedback = this.settingsDrawer.querySelector('#camera-fov-feedback');
       const distance = Number((this.settingsDrawer.querySelector('#camera-measured-distance') as HTMLInputElement).value) / 100;
       try {
         if (!this.callbacks.onCalibrateCamera) throw new Error('Camera calibration is unavailable.');
-        const fov = this.callbacks.onCalibrateCamera(distance);
-        if (feedback) feedback.textContent = `Saved ${fov.toFixed(1)}°. Sit centered and press Calibrate next.`;
+        this.callbacks.onCalibrateCamera(distance);
+        if (feedback) feedback.textContent = 'FOV saved. Use Center & Distance to recenter.';
       } catch (error) {
         if (feedback) feedback.textContent = error instanceof Error ? error.message : 'Calibration failed. Try again.';
       }

@@ -20,6 +20,8 @@ export class SceneManager {
 
   private currentSceneType: SceneType = SceneType.Aquarium;
   private dirLight: THREE.DirectionalLight;
+  private aquariumLightEnabled = true;
+  private readonly aquariumDirectionalIntensity = 2.0;
   private ambientLight: THREE.AmbientLight;
   private accentLight1: THREE.PointLight;
   private accentLight2: THREE.PointLight;
@@ -71,6 +73,13 @@ export class SceneManager {
     return this.currentSceneType;
   }
 
+  public setAquariumLightEnabled(enabled: boolean): void {
+    this.aquariumLightEnabled = enabled;
+    if (this.currentSceneType === SceneType.Aquarium) {
+      this.dirLight.intensity = this.aquariumDirectionalIntensity * (enabled ? 1 : 0.15);
+    }
+  }
+
   public rebuild(screen: ScreenGeometry): void {
     this.demoScene.rebuild(screen);
     this.aquariumScene.rebuild(screen);
@@ -104,7 +113,7 @@ export class SceneManager {
       const lightDistance = 0.95;
       const lightTilt = 0;
       this.dirLight.color.setHex(0xffffff);
-      this.dirLight.intensity = 2.0;
+      this.dirLight.intensity = this.aquariumDirectionalIntensity * (this.aquariumLightEnabled ? 1 : 0.15);
       this.dirLight.position.set(
         0,
         lightDistance * Math.cos(lightTilt),
