@@ -26,7 +26,7 @@ export class DemoScene {
   private particles: THREE.Points | null = null;
   private axes: THREE.AxesHelper | null = null;
   private axesVisible: boolean = true;
-  private distanceLabelsVisible = true;
+  private distanceLabelsVisible = false;
   private readonly calibrationGridColor = new THREE.Color(0xff4444);
 
   public setCalibrationGridColor(color: string): void {

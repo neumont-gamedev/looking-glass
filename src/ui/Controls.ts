@@ -285,7 +285,7 @@ export class Controls {
             <option value="#000000">None</option>
           </select>
           <label class="checkbox-row" for="check-distance-labels">
-            <input type="checkbox" id="check-distance-labels" checked>
+            <input type="checkbox" id="check-distance-labels">
             <span>Show distance labels</span>
           </label>
         </div>

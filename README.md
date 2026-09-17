@@ -38,7 +38,7 @@ FOV calibration assumes 63 mm pupil spacing and is approximate. It needs a measu
 
 - Inspect perspective using an antialiased grid and depth markers.
 - Grid colors: Red (default), Green, Blue, Orange, Yellow, White, or None (solid black).
-- Toggle **Show distance labels** independently.
+- Distance labels are hidden by default; enable **Show distance labels** to display them.
 
 ## Controls
 
