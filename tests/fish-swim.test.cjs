@@ -110,9 +110,9 @@ test('isolated fish accelerate and slow smoothly across randomized swim interval
       swimmer.update(1 / 60, step / 60);
       speeds.push(swimmer.velocity.length());
     }
-    assert.ok(speeds[60] < .07, 'initial slow cruise');
-    assert.ok(speeds[180] > .13, 'accelerates without neighboring fish');
-    assert.ok(speeds[330] < .07, 'returns to slow cruise');
+    assert.ok(speeds[60] < .045, 'initial slower cruise');
+    assert.ok(speeds[200] > .13, 'accelerates without neighboring fish');
+    assert.ok(speeds[330] < .045, 'returns to slower cruise');
     for (let i = 1; i < speeds.length; i++) {
       assert.ok(Math.abs(speeds[i] - speeds[i - 1]) < .004, 'no abrupt speed jump');
       assert.ok(Number.isFinite(speeds[i]) && speeds[i] <= .16);
@@ -121,4 +121,30 @@ test('isolated fish accelerate and slow smoothly across randomized swim interval
     Math.random = originalRandom;
     swimmer?.dispose();
   }
+});
+
+test('planar caustics preserve swimming deformation and the directional shadow path', () => {
+  const { PlanarCaustics } = require('../src/rendering/aquarium/PlanarCaustics.ts');
+  const { root, mesh } = fish(new THREE.MeshStandardMaterial(), new THREE.BoxGeometry(1, .4, .2));
+  const swim = new FishSwimShader(root, .5);
+  const caustics = new PlanarCaustics();
+  caustics.update(root, 2);
+  const shader = compileSource(mesh.material, THREE.ShaderLib.standard);
+  assert.ok(shader.vertexShader.indexOf('swimPosition.z += swim.x') < shader.vertexShader.indexOf('vCausticWorld ='));
+  assert.match(shader.fragmentShader, /directLight.color \*= 1.0 \+ uCausticIntensity/);
+  const directional = shader.fragmentShader.slice(shader.fragmentShader.indexOf('getDirectionalLightInfo( directionalLight'));
+  assert.ok(directional.indexOf('projectedCaustic(') < directional.indexOf('getShadow('));
+  assert.ok(directional.indexOf('getShadow(') < directional.indexOf('RE_Direct('));
+  assert.match(mesh.material.customProgramCacheKey(), /fish-swim-v1\|planar-caustics-v1/);
+  const callback = mesh.material.onBeforeCompile;
+  caustics.update(root, 3);
+  assert.equal(mesh.material.onBeforeCompile, callback);
+  assert.equal(shader.uniforms.uCausticTime.value, 3);
+  const later = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial());
+  root.add(later);
+  caustics.update(root, 4);
+  const laterShader = compileSource(later.material, THREE.ShaderLib.standard);
+  assert.equal(laterShader.uniforms.uCausticTime, shader.uniforms.uCausticTime);
+  assert.equal(compileSource(mesh.customDepthMaterial, THREE.ShaderLib.depth).uniforms.uCausticTime, undefined);
+  swim.dispose();
 });

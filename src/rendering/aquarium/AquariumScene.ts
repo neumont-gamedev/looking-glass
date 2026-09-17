@@ -15,6 +15,7 @@ import { Fish, FishSpecies } from './Fish';
 import { AquariumInteractions } from './AquariumInteractions';
 import { CustomModelLoader, CustomFishOptions, CustomDecorationOptions } from './CustomModelLoader';
 import { CausticEffect } from './CausticEffect';
+import { PlanarCaustics } from './PlanarCaustics';
 
 interface PlantDecoration {
   group: THREE.Group;
@@ -49,11 +50,14 @@ export class AquariumScene {
 
   // Environment elements
   private bubbles: THREE.Points | null = null;
+  private diverLight: THREE.PointLight | null = null;
+  private readonly diverLightBaseIntensity = 0.0225;
   private bubbleVelocities: Float32Array | null = null;
   private bubbleCount: number = 180;
   private plantDecorations: PlantDecoration[] = [];
   private customDecorations: THREE.Group[] = [];
   private nextCustomSchoolId = 1;
+  public readonly planarCaustics = new PlanarCaustics();
   private environmentGeneration = 0;
 
   constructor(screen: ScreenGeometry) {
@@ -92,6 +96,7 @@ export class AquariumScene {
   }
 
   private clearEnvironment(): void {
+    this.diverLight = null;
     // Clean up bubbles
     if (this.bubbles) {
       this.group.remove(this.bubbles);
@@ -106,6 +111,7 @@ export class AquariumScene {
     for (const deco of this.customDecorations) {
       this.group.remove(deco);
       deco.traverse((child) => {
+        if ((child as THREE.PointLight).isPointLight) (child as THREE.PointLight).dispose();
         if ((child as THREE.Mesh).geometry) (child as THREE.Mesh).geometry.dispose();
         if ((child as THREE.Mesh).material) {
           const mat = (child as THREE.Mesh).material;
@@ -149,14 +155,22 @@ export class AquariumScene {
     const D = this.depth;
 
     // 1. Gravel floor (at y = -H/2)
-    const floorGeo = new THREE.PlaneGeometry(W, D, 32, 32);
-    // Add subtle unevenness to the seabed
+    // 19 segments produce exactly 20 vertices along each axis (400 total).
+    const floorGeo = new THREE.PlaneGeometry(W, D, 19, 19);
+    floorGeo.rotateX(-Math.PI / 2);
+    // Static sand ripples in meters, up to 6 mm above/below the base height.
+    // Fade to zero at the walls so the floor does not leave gaps at its edges.
+    const waveHeight = 0.006;
+    const wavelength = 0.22;
     const posAttr = floorGeo.attributes.position;
     for (let i = 0; i < posAttr.count; i++) {
       const x = posAttr.getX(i);
-      const y = posAttr.getY(i);
-      const zOffset = Math.sin(x * 12) * 0.003 + Math.cos(y * 8) * 0.002;
-      posAttr.setZ(i, zOffset);
+      const z = posAttr.getZ(i);
+      const edgeFade = Math.max(0, Math.sin(Math.PI * (x / W + 0.5)))
+        * Math.max(0, Math.sin(Math.PI * (z / D + 0.5)));
+      const height = waveHeight * edgeFade
+        * Math.sin(2 * Math.PI * (x + z * 0.35) / wavelength);
+      posAttr.setY(i, height);
     }
     floorGeo.computeVertexNormals();
 
@@ -174,13 +188,12 @@ export class AquariumScene {
       color: 0xffffff,
       map: this.gravelTexture,
       normalMap: this.gravelNormalTexture,
-      normalScale: new THREE.Vector2(2, 2),
+      normalScale: new THREE.Vector2(1, 1),
       // Wet gravel catches highlights without behaving like metal.
-      roughness: 0.45,
+      roughness: 0.25,
       metalness: 0
     });
     const floor = new THREE.Mesh(floorGeo, floorMat);
-    floor.rotation.x = -Math.PI / 2;
     floor.position.set(0, -H / 2, -D / 2);
     floor.receiveShadow = true;
     this.group.add(floor);
@@ -238,8 +251,8 @@ export class AquariumScene {
 
     // Supplied decorations frame the foreground swimming area.
     for (const decoration of [
-      { file: 'diver.glb', size: 0.06, x: -W * 0.18, z: -D * 0.34, yaw: 0.25 },
-      { file: 'rock01.glb', size: 0.11, x: W * 0.27, z: -D * 0.30, yaw: -0.4 }
+      { file: 'diver.glb', size: 0.075, x: -W * 0.18, z: -D * 0.34, yaw: 0.25, sink: 0.005 },
+      { file: 'rock01.glb', size: 0.11, x: W * 0.27, z: -D * 0.30, yaw: -0.4, sink: 0.01 }
     ]) {
       this.customModelLoader.loadGLTF(`/models/${decoration.file}`)
         .then((template) => {
@@ -247,9 +260,18 @@ export class AquariumScene {
           if (generation !== this.environmentGeneration) return;
           const model = this.customModelLoader.instantiateDecoration(template, {
             targetScale: decoration.size,
-            position: new THREE.Vector3(decoration.x, -H / 2, decoration.z),
+            position: new THREE.Vector3(decoration.x, -H / 2 - decoration.sink, decoration.z),
             rotation: new THREE.Euler(0, decoration.yaw, 0)
           });
+          if (decoration.file === 'diver.glb') {
+            // The supplied model is one mesh without a named mask attachment.
+            // Position just ahead of the upper face, in the normalized model's meters.
+            const maskLight = new THREE.PointLight(0xffdd33, this.diverLightBaseIntensity, 0.06, 2);
+            this.diverLight = maskLight;
+            maskLight.name = 'diver-mask-light';
+            maskLight.position.set(0, decoration.size * 0.84, decoration.size * 0.25);
+            model.add(maskLight);
+          }
           this.customDecorations.push(model);
           this.group.add(model);
         })
@@ -261,6 +283,7 @@ export class AquariumScene {
 
     // 7. Micro-bubbles Particle System
     this.buildBubbles(W, H, D);
+
   }
 
   private buildLog(W: number, H: number, D: number): void {
@@ -424,7 +447,26 @@ export class AquariumScene {
       });
   }
 
+  /** Deterministic 1D value noise in [0, 1], smoothly joined at sample boundaries. */
+  private lightNoise(time: number): number {
+    const cell = Math.floor(time);
+    const fraction = time - cell;
+    const blend = fraction * fraction * (3 - 2 * fraction);
+    const hash = (value: number): number => {
+      const n = Math.sin(value * 127.1 + 311.7) * 43758.5453;
+      return n - Math.floor(n);
+    };
+    return THREE.MathUtils.lerp(hash(cell), hash(cell + 1), blend);
+  }
+
   public update(deltaTimeSeconds: number, timeSeconds: number): void {
+    if (this.diverLight) {
+      // Two rates of continuous value noise: slow variation with a subtle flutter.
+      const noise = 0.75 * this.lightNoise(timeSeconds * 0.7)
+        + 0.25 * this.lightNoise(timeSeconds * 2.3 + 17);
+      this.diverLight.intensity = this.diverLightBaseIntensity * (0.7 + noise * 0.6);
+    }
+    this.planarCaustics.update(this.group, timeSeconds);
     // 1. Update aquatic plant sway with gentle current
     for (const plant of this.plantDecorations) {
       plant.group.rotation.z = plant.initialRotationZ + Math.sin(timeSeconds * plant.speed + plant.phase) * 0.035;

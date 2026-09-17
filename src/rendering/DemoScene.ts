@@ -11,6 +11,8 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { ScreenGeometry } from '../math/ScreenGeometry';
+import { FishSwimShader } from './aquarium/FishSwimShader';
+import { calibrationGridMaterial } from './CalibrationGridMaterial';
 
 export enum SceneType {
   Aquarium = 'Aquarium',
@@ -24,6 +26,18 @@ export class DemoScene {
   private particles: THREE.Points | null = null;
   private axes: THREE.AxesHelper | null = null;
   private axesVisible: boolean = true;
+  private distanceLabelsVisible = true;
+  private readonly calibrationGridColor = new THREE.Color(0xff4444);
+
+  public setCalibrationGridColor(color: string): void {
+    this.calibrationGridColor.set(color);
+  }
+  private distanceLabels: THREE.Sprite[] = [];
+
+  public setDistanceLabelsVisible(visible: boolean): void {
+    this.distanceLabelsVisible = visible;
+    this.distanceLabels.forEach(label => { label.visible = visible; });
+  }
   private currentSceneType: SceneType = SceneType.Diorama;
 
   // Model Viewer subsystems
@@ -32,6 +46,8 @@ export class DemoScene {
   private modelGroup: THREE.Group = new THREE.Group();
   private modelWrapper: THREE.Group | null = null;
   private currentMixer: THREE.AnimationMixer | null = null;
+  private fishSwim: FishSwimShader | null = null;
+  private modelLoadGeneration = 0;
   private wallMeshes: THREE.Mesh[] = [];
   private currentModelUrl: string = 'models/fish01.glb';
   private currentTextureUrl: string = 'textures/orange_grid.png';
@@ -42,7 +58,11 @@ export class DemoScene {
   private modelRotationY: number = 0;
   private modelAutoRotate: boolean = true;
 
-  constructor(screen: ScreenGeometry) {
+  private readonly wallTextureAnisotropy: number;
+
+  constructor(screen: ScreenGeometry, maxTextureAnisotropy: number = 1) {
+    // Preserve grid detail on walls viewed at grazing angles without exceeding GPU support.
+    this.wallTextureAnisotropy = Math.max(1, Math.min(8, maxTextureAnisotropy));
     this.currentScreen = screen;
     this.group.add(this.modelGroup);
     this.buildDiorama(screen);
@@ -84,6 +104,10 @@ export class DemoScene {
   }
 
   private clear(): void {
+    this.distanceLabels = [];
+    this.modelLoadGeneration++;
+    this.fishSwim?.dispose();
+    this.fishSwim = null;
     if (this.currentMixer) {
       this.currentMixer.stopAllAction();
       this.currentMixer = null;
@@ -135,6 +159,9 @@ export class DemoScene {
   public async setModel(modelUrl: string): Promise<void> {
     this.currentModelUrl = modelUrl;
     if (this.currentSceneType !== SceneType.Diorama) return;
+    const generation = ++this.modelLoadGeneration;
+    this.fishSwim?.dispose();
+    this.fishSwim = null;
 
     while (this.modelGroup.children.length > 0) {
       const child = this.modelGroup.children[0];
@@ -148,6 +175,7 @@ export class DemoScene {
 
     try {
       const gltf = await this.gltfLoader.loadAsync(modelUrl);
+      if (generation !== this.modelLoadGeneration) return;
       const scene = gltf.scene;
 
       // Compute bounding box and normalize scale
@@ -175,7 +203,21 @@ export class DemoScene {
       });
 
       this.modelWrapper = new THREE.Group();
-      this.modelWrapper.add(scene);
+      const isFish = /(?:^|\/)fish0[123]\.glb(?:[?#]|$)/.test(modelUrl);
+      if (isFish) {
+        // Supplied fish face -X. Normalize to +X for the shared tail shader,
+        // then restore their original display orientation outside its local frame.
+        const facing = new THREE.Group();
+        facing.rotation.y = Math.PI;
+        facing.add(scene);
+        const swimRoot = new THREE.Group();
+        swimRoot.add(facing);
+        this.fishSwim = new FishSwimShader(swimRoot, 0);
+        swimRoot.rotation.y = Math.PI;
+        this.modelWrapper.add(swimRoot);
+      } else {
+        this.modelWrapper.add(scene);
+      }
       this.modelWrapper.position.set(0, 0, this.modelZ);
       this.modelWrapper.scale.setScalar(this.modelScaleMultiplier);
       this.modelWrapper.rotation.y = this.modelRotationY;
@@ -270,6 +312,7 @@ export class DemoScene {
         newTex.wrapS = THREE.RepeatWrapping;
         newTex.wrapT = THREE.RepeatWrapping;
         newTex.colorSpace = THREE.SRGBColorSpace;
+        newTex.anisotropy = this.wallTextureAnisotropy;
         newTex.repeat.set(wMeters / 0.10, hMeters / 0.10);
         mat.color.set(0xffffff);
         mat.map = newTex;
@@ -326,6 +369,7 @@ export class DemoScene {
       texture.wrapS = THREE.RepeatWrapping;
       texture.wrapT = THREE.RepeatWrapping;
       texture.colorSpace = THREE.SRGBColorSpace;
+      texture.anisotropy = this.wallTextureAnisotropy;
       // Exact physical 10cm UV repeat (1 texture square per 0.10m in world space)
       texture.repeat.set(wMeters / 0.10, hMeters / 0.10);
 
@@ -412,103 +456,39 @@ export class DemoScene {
     // ------------------------------------------------------------------
     // 1. Dark Room Interior Walls (Floor, Ceiling, Left, Right, Back)
     // ------------------------------------------------------------------
-    const roomMat = new THREE.MeshStandardMaterial({
-      color: 0x141519,
-      roughness: 0.85,
-      metalness: 0.05,
-      polygonOffset: true,
-      polygonOffsetFactor: 1,
-      polygonOffsetUnits: 1
-    });
-
     // Floor (at y = -H/2)
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(W, maxDepth), roomMat);
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(W, maxDepth), calibrationGridMaterial(10, 10, this.calibrationGridColor));
     floor.rotation.x = -Math.PI / 2;
     floor.position.set(0, -H / 2, -maxDepth / 2);
     floor.receiveShadow = true;
     this.group.add(floor);
 
     // Ceiling (at y = +H/2)
-    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(W, maxDepth), roomMat);
+    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(W, maxDepth), calibrationGridMaterial(10, 10, this.calibrationGridColor));
     ceiling.rotation.x = Math.PI / 2;
     ceiling.position.set(0, H / 2, -maxDepth / 2);
     ceiling.receiveShadow = true;
     this.group.add(ceiling);
 
     // Left Wall (at x = -W/2)
-    const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(maxDepth, H), roomMat);
+    const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(maxDepth, H), calibrationGridMaterial(10, 6, this.calibrationGridColor));
     leftWall.rotation.y = Math.PI / 2;
     leftWall.position.set(-W / 2, 0, -maxDepth / 2);
     leftWall.receiveShadow = true;
     this.group.add(leftWall);
 
     // Right Wall (at x = +W/2)
-    const rightWall = new THREE.Mesh(new THREE.PlaneGeometry(maxDepth, H), roomMat);
+    const rightWall = new THREE.Mesh(new THREE.PlaneGeometry(maxDepth, H), calibrationGridMaterial(10, 6, this.calibrationGridColor));
     rightWall.rotation.y = -Math.PI / 2;
     rightWall.position.set(W / 2, 0, -maxDepth / 2);
     rightWall.receiveShadow = true;
     this.group.add(rightWall);
 
     // Back Wall (at z = -maxDepth)
-    const backWall = new THREE.Mesh(new THREE.PlaneGeometry(W, H), roomMat);
+    const backWall = new THREE.Mesh(new THREE.PlaneGeometry(W, H), calibrationGridMaterial(10, 6, this.calibrationGridColor));
     backWall.position.set(0, 0, -maxDepth);
     backWall.receiveShadow = true;
     this.group.add(backWall);
-
-    // ------------------------------------------------------------------
-    // 2. Amber/Orange Perspective Grid
-    // ------------------------------------------------------------------
-    const Nx = 10;
-    const Ny = 6;
-    const Nz = 10; // 5cm spacing along Z (0.50m / 10 = 0.05m = 5cm)
-    const dx = W / Nx;
-    const dy = H / Ny;
-    const dz = maxDepth / Nz;
-
-    const gridPoints: number[] = [];
-
-    // Longitudinal lines along Ceiling & Floor running from Z = 0 to Z = -maxDepth
-    for (let i = 0; i <= Nx; i++) {
-      const x = -W / 2 + i * dx;
-      gridPoints.push(x, H / 2, 0, x, H / 2, -maxDepth);
-      gridPoints.push(x, -H / 2, 0, x, -H / 2, -maxDepth);
-    }
-
-    // Longitudinal lines along Left & Right walls running from Z = 0 to Z = -maxDepth
-    for (let j = 0; j <= Ny; j++) {
-      const y = -H / 2 + j * dy;
-      gridPoints.push(-W / 2, y, 0, -W / 2, y, -maxDepth);
-      gridPoints.push(W / 2, y, 0, W / 2, y, -maxDepth);
-    }
-
-    // Transverse rectangular depth rings at every interval along Z
-    for (let k = 0; k <= Nz; k++) {
-      const z = -k * dz;
-      gridPoints.push(-W / 2, -H / 2, z, W / 2, -H / 2, z);
-      gridPoints.push(W / 2, -H / 2, z, W / 2, H / 2, z);
-      gridPoints.push(W / 2, H / 2, z, -W / 2, H / 2, z);
-      gridPoints.push(-W / 2, H / 2, z, -W / 2, -H / 2, z);
-    }
-
-    // Back wall inner grid lines
-    for (let i = 1; i < Nx; i++) {
-      const x = -W / 2 + i * dx;
-      gridPoints.push(x, -H / 2, -maxDepth, x, H / 2, -maxDepth);
-    }
-    for (let j = 1; j < Ny; j++) {
-      const y = -H / 2 + j * dy;
-      gridPoints.push(-W / 2, y, -maxDepth, W / 2, y, -maxDepth);
-    }
-
-    const gridGeo = new THREE.BufferGeometry();
-    gridGeo.setAttribute('position', new THREE.Float32BufferAttribute(gridPoints, 3));
-    const gridMat = new THREE.LineBasicMaterial({
-      color: 0xff9900,
-      transparent: true,
-      opacity: 0.95
-    });
-    const orangeGrid = new THREE.LineSegments(gridGeo, gridMat);
-    this.group.add(orangeGrid);
 
     // Front baseline label at bottom center Z = 0
     const frontLabel = this.createLabelSprite('Z: 0 cm (0.0 in)', 0xffffff);
@@ -645,11 +625,15 @@ export class DemoScene {
       depthTest: true
     });
     const sprite = new THREE.Sprite(spriteMat);
+    sprite.visible = this.distanceLabelsVisible;
+    this.distanceLabels.push(sprite);
     sprite.scale.set(0.04875, 0.0121875, 1.0);
     return sprite;
   }
 
   public update(timeSeconds: number, deltaTimeSeconds: number = 0.016): void {
+    // A steady cruise previews swimming independently of the model rotation control.
+    this.fishSwim?.update(deltaTimeSeconds, 0.65);
     if (this.currentSceneType === SceneType.Diorama) {
       if (this.currentMixer) {
         this.currentMixer.update(deltaTimeSeconds);

@@ -141,13 +141,13 @@ export class KinematicPredictor {
       const elapsedSinceSample = Math.max(0, currentTimeSec - this.lastSampleTime);
       // Cap sample age continuously; dropping it at the threshold caused a jump.
       extrapolationDt += Math.min(elapsedSinceSample, this.config.maxExtrapolationGap);
-      if (elapsedSinceSample >= this.config.maxExtrapolationGap) {
-        // Fade velocity when tracking updates stall
-        const fadeFactor = Math.max(0, 1 - (elapsedSinceSample - this.config.maxExtrapolationGap) / 0.1);
-        effVx *= fadeFactor;
-        effVy *= fadeFactor;
-        effVz *= fadeFactor;
-      }
+      // Integrate a velocity that fades over 100 ms instead of multiplying the
+      // entire predicted displacement by that fade. Multiplying displacement
+      // made the target move backward at low tracking rates (e.g. 11 Hz).
+      const fadeDuration = 0.1;
+      const fadeElapsed = Math.min(fadeDuration,
+        Math.max(0, elapsedSinceSample - this.config.maxExtrapolationGap));
+      extrapolationDt += fadeElapsed - fadeElapsed * fadeElapsed / (2 * fadeDuration);
     }
 
     const targetX = this.samplePos.x + effVx * extrapolationDt;

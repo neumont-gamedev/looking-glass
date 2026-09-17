@@ -109,7 +109,7 @@ export class FishSwimShader {
       // Own the geometry so expanding bounds/disposal cannot affect sibling fish.
       mesh.geometry = mesh.geometry.clone();
       mesh.geometry.computeBoundingSphere();
-      const maxLocalOffset = new THREE.Vector3(0, 0, this.length * .08)
+      const maxLocalOffset = new THREE.Vector3(0, 0, this.length * .12)
         .applyMatrix3(new THREE.Matrix3().setFromMatrix4(toMesh)).length();
       mesh.geometry.boundingSphere!.radius += maxLocalOffset;
     }
@@ -118,8 +118,9 @@ export class FishSwimShader {
   public update(dt: number, speedRatio: number): void {
     const speed = THREE.MathUtils.clamp(speedRatio, 0, 1);
     // Integrate phase, rather than multiplying time by speed (which would jump).
-    this.phase.value = (this.phase.value + Math.max(0, dt) * (7 + 11 * speed)) % (2 * Math.PI);
-    this.amplitude.value = this.length * (.025 + .045 * speed);
+    this.phase.value = (this.phase.value + Math.max(0, dt) * 2 * (3 + 19 * speed)) % (2 * Math.PI);
+    // Actual velocity controls both cadence and bend: gentle cruising, strong fast strokes.
+    this.amplitude.value = this.length * (.01 + .10 * speed * speed);
   }
 
   public dispose(): void {

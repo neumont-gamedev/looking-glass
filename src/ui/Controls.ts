@@ -19,58 +19,18 @@ import { SettingsManager, InputMode, AppSettings, computeSmoothingParameters, ge
 
 export { InputMode } from '../settings/SettingsManager';
 
-/**
- * Dynamically queries the textures in public/textures/ folder.
- */
+/** Curated wall grids, in menu order. Aquarium textures are not wall options. */
 function getAvailableTextures(): { url: string; label: string }[] {
-  const globResult = import.meta.glob('../../public/textures/*.{png,jpg,jpeg,webp,svg}', { eager: true });
-  const entries: { url: string; label: string }[] = [];
-
-  for (const path of Object.keys(globResult)) {
-    const filename = path.split('/').pop() || '';
-    if (!filename) continue;
-    const baseName = filename.replace(/\.[^/.]+$/, '');
-    const cleanName = baseName
-      .split(/[-_]/)
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      .join(' ');
-
-    entries.push({
-      url: `textures/${filename}`,
-      label: cleanName
-    });
-  }
-
-  // Fallback to the exact files present in public/textures if glob is empty in bundling
-  if (entries.length === 0) {
-    return [
-      { url: 'textures/orange_grid.png', label: 'Orange Grid' },
-      { url: 'textures/red_grid.png', label: 'Red Grid' },
-      { url: 'textures/blue_grid.png', label: 'Blue Grid' },
-      { url: 'textures/gray_grid.png', label: 'Gray Grid' },
-      { url: 'textures/green_grid.png', label: 'Green Grid' }
-    ];
-  }
-
-  // Desired sort order: orange, red, blue, gray, green, then any others
-  const sortOrder = ['orange_grid.png', 'red_grid.png', 'blue_grid.png', 'gray_grid.png', 'green_grid.png'];
-  entries.sort((a, b) => {
-    const fileA = a.url.split('/').pop() || '';
-    const fileB = b.url.split('/').pop() || '';
-    const idxA = sortOrder.indexOf(fileA);
-    const idxB = sortOrder.indexOf(fileB);
-    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-    if (idxA !== -1) return -1;
-    if (idxB !== -1) return 1;
-    return a.label.localeCompare(b.label);
-  });
-
-  return entries;
+  return ['Orange', 'Red', 'Blue', 'Gray', 'Green'].map(color => ({
+    url: `textures/${color.toLowerCase()}_grid.png`,
+    label: color
+  }));
 }
-
 export interface ControlsCallbacks {
   onInputModeChange: (mode: InputMode) => void;
   onSceneChange: (sceneType: SceneType) => void;
+  onDistanceLabelsChange?: (visible: boolean) => void;
+  onCalibrationGridColorChange?: (color: string) => void;
   onFeedFish?: () => void;
   onToggleDebugHud?: (visible: boolean) => void;
   getCurrentRawPose?: () => ViewerPose | null;
@@ -110,7 +70,6 @@ export class Controls {
 
   private activeDistanceTab: DistanceCalibrationMode = 'wireframe';
   private biometricTimer: number | null = null;
-  private latestBiometricResult: BiometricDistanceResult | null = null;
 
   private debugFpsValEl: HTMLElement | null = null;
   private debugTrackFpsValEl: HTMLElement | null = null;
@@ -141,7 +100,7 @@ export class Controls {
     this.currentInputMode = initialSettings.inputMode;
     this.isDebugHudVisible = initialSettings.debugHudVisible;
     this.currentSceneType = initialSettings.sceneType;
-    this.activeDistanceTab = this.calibrationManager.getData().distanceMode ?? 'wireframe';
+    this.activeDistanceTab = this.calibrationManager.getData().distanceMode === 'wireframe' ? 'wireframe' : 'manual';
 
     this.topBar = document.createElement('header');
     this.topBar.className = 'hud-topbar';
@@ -316,6 +275,23 @@ export class Controls {
           </select>
         </div>
 
+        <div id="scene-calibration-options" class="setting-group" style="display: ${currentScene === SceneType.Debug ? 'block' : 'none'};">
+          <label for="calibration-grid-color">Grid color</label>
+          <select id="calibration-grid-color">
+            <option value="#ff4444">Red</option>
+            <option value="#44cc66">Green</option>
+            <option value="#4488ff">Blue</option>
+            <option value="#ff9900">Orange</option>
+            <option value="#ffff00">Yellow</option>
+            <option value="#ffffff">White</option>
+            <option value="#000000">None</option>
+          </select>
+          <label class="checkbox-row" for="check-distance-labels">
+            <input type="checkbox" id="check-distance-labels" checked>
+            <span>Show distance labels</span>
+          </label>
+        </div>
+
         <div id="scene-model-viewer-options" style="display: ${currentScene === SceneType.Diorama ? 'block' : 'none'};">
           <div class="settings-subsection-title">Model & Texture</div>
 
@@ -323,6 +299,8 @@ export class Controls {
             <label for="scene-select-model">Select 3D Model:</label>
             <select id="scene-select-model">
               <option value="models/cherub.glb" ${currentModel === 'models/cherub.glb' ? 'selected' : ''}>Cherub</option>
+              <option value="models/diver.glb" ${currentModel === 'models/diver.glb' ? 'selected' : ''}>Diver</option>
+              <option value="models/rock01.glb" ${currentModel === 'models/rock01.glb' ? 'selected' : ''}>Rock</option>
               <option value="models/fish01.glb" ${currentModel === 'models/fish01.glb' ? 'selected' : ''}>Fish 1</option>
               <option value="models/fish02.glb" ${currentModel === 'models/fish02.glb' ? 'selected' : ''}>Fish 2</option>
               <option value="models/fish03.glb" ${currentModel === 'models/fish03.glb' ? 'selected' : ''}>Fish 3</option>
@@ -334,7 +312,7 @@ export class Controls {
 
           <div class="setting-group">
             <div class="setting-header">
-              <label for="slider-model-z">Model Depth (Z):</label>
+              <label for="slider-model-z">Depth</label>
               <span id="val-model-z" class="slider-value">-25 cm</span>
             </div>
             <input type="range" id="slider-model-z" min="-45" max="5" step="1" value="-25">
@@ -342,7 +320,7 @@ export class Controls {
 
           <div class="setting-group">
             <div class="setting-header">
-              <label for="slider-model-scale">Model Scale:</label>
+              <label for="slider-model-scale">Scale</label>
               <span id="val-model-scale" class="slider-value">1.00×</span>
             </div>
             <input type="range" id="slider-model-scale" min="0.2" max="2.5" step="0.05" value="1.0">
@@ -350,7 +328,7 @@ export class Controls {
 
           <div class="setting-group">
             <div class="setting-header">
-              <label for="slider-model-rot">Model Rotation (Y):</label>
+              <label for="slider-model-rot">Rotation Y</label>
               <span id="val-model-rot" class="slider-value">0°</span>
             </div>
             <input type="range" id="slider-model-rot" min="0" max="360" step="1" value="0">
@@ -390,7 +368,7 @@ export class Controls {
 
           <div class="setting-group">
             <div class="setting-header">
-              <label for="slider-light-rot-x">Directional Tilt X:</label>
+              <label for="slider-light-rot-x">Light tilt X</label>
               <span id="val-light-rot-x" class="slider-value">+10°</span>
             </div>
             <input type="range" id="slider-light-rot-x" min="-75" max="75" step="1" value="10">
@@ -398,7 +376,7 @@ export class Controls {
 
           <div class="setting-group">
             <div class="setting-header">
-              <label for="slider-light-rot-z">Directional Tilt Z:</label>
+              <label for="slider-light-rot-z">Light tilt Z</label>
               <span id="val-light-rot-z" class="slider-value">-35°</span>
             </div>
             <input type="range" id="slider-light-rot-z" min="-75" max="75" step="1" value="-35">
@@ -427,6 +405,23 @@ export class Controls {
       if (url && this.callbacks.onModelChange) {
         this.callbacks.onModelChange(url);
       }
+    });
+
+    this.scenePopover.querySelector('#check-distance-labels')?.addEventListener('change', (event) => {
+      this.callbacks.onDistanceLabelsChange?.((event.target as HTMLInputElement).checked);
+    });
+    this.scenePopover.querySelector('#calibration-grid-color')?.addEventListener('change', (event) => {
+      this.callbacks.onCalibrationGridColorChange?.((event.target as HTMLSelectElement).value);
+    });
+
+    const updateSliderFill = (slider: HTMLInputElement): void => {
+      const percent = 100 * (Number(slider.value) - Number(slider.min))
+        / (Number(slider.max) - Number(slider.min));
+      slider.style.setProperty('--slider-fill', `${percent}%`);
+    };
+    this.scenePopover.querySelectorAll<HTMLInputElement>('#scene-model-viewer-options input[type="range"]').forEach(slider => {
+      updateSliderFill(slider);
+      slider.addEventListener('input', () => updateSliderFill(slider));
     });
 
     const modelZSlider = this.scenePopover.querySelector('#slider-model-z') as HTMLInputElement;
@@ -479,6 +474,7 @@ export class Controls {
       if (!isChecked && this.callbacks.getModelCurrentRotationDeg && modelRotSlider && modelRotVal) {
         const currentDeg = Math.round(this.callbacks.getModelCurrentRotationDeg());
         modelRotSlider.value = currentDeg.toString();
+        updateSliderFill(modelRotSlider);
         modelRotVal.textContent = `${currentDeg}°`;
       }
       if (this.callbacks.onModelAutoRotateChange) {
@@ -602,9 +598,7 @@ export class Controls {
     }
     this.isDrawerOpen = true;
     this.settingsDrawer.style.display = 'block';
-    if (this.activeDistanceTab === 'biometric') {
-      this.startBiometricPolling();
-    }
+    this.startBiometricPolling();
     this.updateDrawerCalibrationReadouts();
   }
 
@@ -624,6 +618,8 @@ export class Controls {
 
   public setScene(sceneType: SceneType): void {
     this.currentSceneType = sceneType;
+    const calibrationOptions = this.scenePopover?.querySelector('#scene-calibration-options') as HTMLElement;
+    if (calibrationOptions) calibrationOptions.style.display = sceneType === SceneType.Debug ? 'block' : 'none';
     if (this.feedFishBtn) {
       this.feedFishBtn.style.display = sceneType === SceneType.Aquarium ? '' : 'none';
     }
@@ -731,17 +727,19 @@ export class Controls {
   private startBiometricPolling(): void {
     this.stopBiometricPolling();
     this.biometricTimer = window.setInterval(() => {
-      if (!this.isDrawerOpen || this.activeDistanceTab !== 'biometric') return;
+      if (!this.isDrawerOpen) return;
 
       const bio = this.callbacks.getBiometricDistance?.();
-      this.latestBiometricResult = bio ?? null;
 
       const bioVal = this.settingsDrawer.querySelector('#drawer-bio-dist-val');
       const bioStatus = this.settingsDrawer.querySelector('#drawer-bio-status');
       const bioDot = this.settingsDrawer.querySelector('#drawer-bio-dot') as HTMLElement;
       const bioLockBtn = this.settingsDrawer.querySelector('#btn-drawer-bio-lock') as HTMLButtonElement;
 
-      if (bio && bio.confidence > 0.4) {
+      const raw = this.callbacks.getCurrentRawPose?.();
+      const fresh = this.currentInputMode === InputMode.Webcam && raw
+        && Number.isFinite(raw.timestamp) && performance.now() / 1000 - raw.timestamp <= 0.5;
+      if (bio && bio.confidence > 0.4 && fresh) {
         const cm = bio.distanceMeters * 100;
         const inches = bio.distanceMeters * 39.3701;
         if (bioVal) bioVal.textContent = `${cm.toFixed(0)} cm (${inches.toFixed(1)} in)`;
@@ -875,24 +873,11 @@ export class Controls {
           </div>
         </div>
 
-        <div class="setting-group">
-          <h4>Webcam Field of View</h4>
-          <div class="slider-row">
-            <label for="camera-fov">Horizontal FOV: <span id="camera-fov-value">${calibData.cameraHFOV.toFixed(1)}°</span></label>
-            <input type="range" id="camera-fov" min="30" max="120" step="0.1" value="${calibData.cameraHFOV}" />
-          </div>
-          <p>Measure from the camera lens to your eyes. Face the camera straight on and hold still for one second.</p>
-          <label for="camera-measured-distance">Camera-to-eye distance (cm)</label>
-          <input type="number" id="camera-measured-distance" min="30" max="150" step="1" value="${Math.round(calibData.viewingDistance * 100)}" />
-          <button class="btn" id="camera-fov-calibrate">Estimate FOV from distance</button>
-          <p class="status-note" id="camera-fov-feedback" role="status"></p>
-          <small>Estimate assumes 63 mm pupil spacing. You can also enter your camera's horizontal FOV with the slider. Recalibrate after changing cameras or capture modes.</small>
-        </div>
 
         <!-- Screen Dimensions Section -->
         <div class="setting-group" style="margin-top: 14px; border-top: 1px solid var(--bg-surface-border); padding-top: 12px;">
-          <h4>Full Monitor Dimensions</h4>
-          <p>Enter the full display size. The 3D window adjusts to the browser size automatically. Use 100% browser zoom.</p>
+          <h4>Monitor Size</h4>
+          <p class="setting-hint">Full display dimensions · Browser zoom 100%</p>
           <div style="font-size: 0.70rem; color: var(--text-secondary); margin-bottom: 5px;">Monitor Presets:</div>
           <div class="calib-preset-buttons" style="margin-bottom: 10px;">
             <button type="button" class="btn-preset drawer-preset-btn" data-diag="14">14"</button>
@@ -915,55 +900,27 @@ export class Controls {
           </div>
         </div>
 
-        <!-- Neutral Center Position Section -->
-        <div class="setting-group" style="margin-top: 14px; border-top: 1px solid var(--bg-surface-border); padding-top: 12px;">
-          <h4>Neutral Center</h4>
-          <p style="font-size: 0.74rem; color: var(--text-secondary); margin-bottom: 8px;">Sit centered in front of your display and look directly at the center of the screen:</p>
-          <div style="display: flex; gap: 6px;">
-            <button id="btn-drawer-recalibrate-center" class="btn" style="flex: 1; border: 1px solid rgba(0, 229, 255, 0.4); color: var(--accent-cyan); background: rgba(0, 229, 255, 0.08); cursor: pointer; padding: 7px 10px; font-size: 0.76rem; transition: background 0.2s;">
-              Set Center Position
-            </button>
-            <button id="btn-drawer-reset-center" class="btn" style="border: 1px solid rgba(255, 255, 255, 0.15); color: var(--text-secondary); background: rgba(255, 255, 255, 0.05); cursor: pointer; padding: 7px 10px; font-size: 0.76rem; transition: background 0.2s;" title="Reset Center to (0, 0)">
-              ↺ (0, 0)
-            </button>
+        <div class="setting-group">
+          <h4>Webcam Field of View</h4>
+          <div class="slider-row">
+            <label for="camera-fov">Horizontal FOV: <span id="camera-fov-value">${calibData.cameraHFOV.toFixed(1)}°</span></label>
+            <input type="range" id="camera-fov" min="30" max="120" step="0.1" value="${calibData.cameraHFOV}" />
           </div>
-          <div id="drawer-center-feedback" class="status-note" style="display: none; margin-top: 6px; font-size: 0.74rem; color: #10b981; font-weight: 500;"></div>
+          <p class="setting-hint">Face forward; hold still for 1 second.</p>
+          <label for="camera-measured-distance">Camera-to-eye distance (cm)</label>
+          <div class="fov-calibration-row">
+            <input type="number" id="camera-measured-distance" min="30" max="150" step="1" value="${Math.round(calibData.viewingDistance * 100)}" />
+            <button class="btn" id="camera-fov-calibrate" title="Estimates FOV using camera-to-eye distance and assumed 63 mm pupil spacing. Recalibrate after changing cameras or capture modes.">Estimate FOV</button>
+          </div>
+          <p class="status-note" id="camera-fov-feedback" role="status"></p>
         </div>
 
         <!-- Viewing Distance Section -->
         <div class="setting-group" style="margin-top: 14px; border-top: 1px solid var(--bg-surface-border); padding-top: 12px;">
-          <h4>Viewing Distance</h4>
-          <div class="calib-tabs" style="margin-bottom: 10px;">
-            <button type="button" class="calib-tab-btn ${this.activeDistanceTab === 'wireframe' ? 'active' : ''}" data-tab="wireframe">
-              Wireframe
-            </button>
-            <button type="button" class="calib-tab-btn ${this.activeDistanceTab === 'biometric' ? 'active' : ''}" data-tab="biometric">
-              Biometric
-            </button>
-            <button type="button" class="calib-tab-btn ${this.activeDistanceTab === 'manual' ? 'active' : ''}" data-tab="manual">
-              Manual
-            </button>
-          </div>
-
-          <!-- Wireframe Mode -->
-          <div class="calib-tab-content ${this.activeDistanceTab === 'wireframe' ? 'active' : ''}" id="drawer-tab-wireframe">
-            <div class="wireframe-launcher-card" style="padding: 10px; margin-bottom: 6px;">
-              <p style="font-size: 0.74rem; color: var(--text-secondary); margin-bottom: 8px; line-height: 1.35;">
-                Aligns a 3D wireframe box with corner guide brackets using live head-coupled perspective.
-              </p>
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <span style="font-size: 0.74rem; color: var(--text-secondary);">Current Distance:</span>
-                <strong id="drawer-wireframe-dist-val" style="color: var(--accent-cyan); font-family: var(--font-mono); font-size: 0.78rem;">${(calibData.viewingDistance * 100).toFixed(0)} cm (${(calibData.viewingDistance * 39.3701).toFixed(1)} in)</strong>
-              </div>
-              <button class="btn btn-primary" id="btn-drawer-wireframe" style="width: 100%; font-size: 0.76rem; padding: 7px 10px;">
-                Launch Wireframe Alignment Mode
-              </button>
-              <div class="status-note" id="drawer-wireframe-feedback" style="font-size: 0.72rem; margin-top: 6px;"></div>
-            </div>
-          </div>
-
+          <h4>Center &amp; Distance</h4>
           <!-- Biometric Mode -->
-          <div class="calib-tab-content ${this.activeDistanceTab === 'biometric' ? 'active' : ''}" id="drawer-tab-biometric">
+          <div class="calibration-primary" id="drawer-tab-biometric">
+            <p class="setting-hint">Sit centered, look straight ahead, then calibrate.</p>
             <div class="biometric-readout-card" style="padding: 10px; margin-bottom: 6px;">
               <div class="biometric-status" style="margin-bottom: 6px;">
                 <span class="status-dot" id="drawer-bio-dot"></span>
@@ -971,15 +928,38 @@ export class Controls {
               </div>
               <div class="biometric-distance-display" id="drawer-bio-dist-val" style="font-size: 1.15rem; margin-bottom: 8px;">-- cm (-- in)</div>
               <button class="btn btn-primary" id="btn-drawer-bio-lock" style="width: 100%; font-size: 0.76rem; padding: 7px 10px;" disabled>
-                Lock Detected Distance
+                Calibrate
               </button>
-              <div style="margin-top: 8px;">
-                <label class="checkbox-row" style="font-size: 0.72rem;">
-                  <input type="checkbox" id="drawer-bio-continuous-toggle" ${calibData.continuousDepthTracking ? 'checked' : ''} />
-                  <span>Continuous Auto-Depth (dynamically updates depth as you lean)</span>
-                </label>
-              </div>
+
               <div class="status-note" id="drawer-bio-feedback" style="font-size: 0.72rem; margin-top: 6px;"></div>
+            </div>
+          </div>
+
+          <details class="advanced-calibration">
+            <summary>Advanced calibration</summary>
+          <div class="calib-tabs" style="margin-bottom: 10px;">
+            <button type="button" class="calib-tab-btn ${this.activeDistanceTab === 'wireframe' ? 'active' : ''}" data-tab="wireframe">
+              Visual alignment
+            </button>
+            <button type="button" class="calib-tab-btn ${this.activeDistanceTab === 'manual' ? 'active' : ''}" data-tab="manual">
+              Measured distance
+            </button>
+          </div>
+
+          <!-- Wireframe Mode -->
+          <div class="calib-tab-content ${this.activeDistanceTab === 'wireframe' ? 'active' : ''}" id="drawer-tab-wireframe">
+            <div class="wireframe-launcher-card" style="padding: 10px; margin-bottom: 6px;">
+              <p style="font-size: 0.74rem; color: var(--text-secondary); margin-bottom: 8px; line-height: 1.35;">
+                Match the box to the corner guides.
+              </p>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span style="font-size: 0.74rem; color: var(--text-secondary);">Current Distance:</span>
+                <strong id="drawer-wireframe-dist-val" style="color: var(--accent-cyan); font-family: var(--font-mono); font-size: 0.78rem;">${(calibData.viewingDistance * 100).toFixed(0)} cm (${(calibData.viewingDistance * 39.3701).toFixed(1)} in)</strong>
+              </div>
+              <button class="btn btn-primary" id="btn-drawer-wireframe" style="width: 100%; font-size: 0.76rem; padding: 7px 10px;">
+                Align Wireframe
+              </button>
+              <div class="status-note" id="drawer-wireframe-feedback" style="font-size: 0.72rem; margin-top: 6px;"></div>
             </div>
           </div>
 
@@ -990,6 +970,7 @@ export class Controls {
               <input type="range" id="drawer-dist-slider" min="30" max="120" step="1" value="${(calibData.viewingDistance * 100).toFixed(0)}" />
             </div>
           </div>
+          </details>
         </div>
 
         <!-- Reset Settings to Defaults -->
@@ -1019,7 +1000,7 @@ export class Controls {
       try {
         if (!this.callbacks.onCalibrateCamera) throw new Error('Camera calibration is unavailable.');
         const fov = this.callbacks.onCalibrateCamera(distance);
-        if (feedback) feedback.textContent = `Saved ${fov.toFixed(1)}°. Sit at your viewing position and set the neutral center next.`;
+        if (feedback) feedback.textContent = `Saved ${fov.toFixed(1)}°. Sit centered and press Calibrate next.`;
       } catch (error) {
         if (feedback) feedback.textContent = error instanceof Error ? error.message : 'Calibration failed. Try again.';
       }
@@ -1053,37 +1034,6 @@ export class Controls {
       this.updateDrawerCalibrationReadouts();
     });
 
-    // Set Neutral Center
-    this.settingsDrawer.querySelector('#btn-drawer-recalibrate-center')?.addEventListener('click', () => {
-      const raw = this.callbacks.getCurrentRawPose ? this.callbacks.getCurrentRawPose() : null;
-      if (raw) {
-        this.calibrationManager.setNeutralOrigin(raw.x, raw.y, raw.z);
-      } else {
-        this.calibrationManager.setNeutralOrigin(0, 0, this.calibrationManager.getData().viewingDistance);
-      }
-      const feedback = this.settingsDrawer.querySelector('#drawer-center-feedback') as HTMLElement;
-      if (feedback) {
-        feedback.textContent = '✓ Neutral center calibrated successfully!';
-        feedback.style.display = 'block';
-        setTimeout(() => {
-          if (feedback) feedback.style.display = 'none';
-        }, 3000);
-      }
-    });
-
-    // Reset Neutral Center
-    this.settingsDrawer.querySelector('#btn-drawer-reset-center')?.addEventListener('click', () => {
-      this.calibrationManager.resetCenterOrigin();
-      const feedback = this.settingsDrawer.querySelector('#drawer-center-feedback') as HTMLElement;
-      if (feedback) {
-        feedback.textContent = '✓ Center reset to default (0, 0)';
-        feedback.style.display = 'block';
-        setTimeout(() => {
-          if (feedback) feedback.style.display = 'none';
-        }, 3000);
-      }
-    });
-
     // Distance Mode Tabs
     const tabBtns = this.settingsDrawer.querySelectorAll('.calib-tab-btn');
     tabBtns.forEach((btn) => {
@@ -1101,11 +1051,7 @@ export class Controls {
           const activeContent = this.settingsDrawer.querySelector(`#drawer-tab-${targetTab}`);
           activeContent?.classList.add('active');
 
-          if (targetTab === 'biometric') {
-            this.startBiometricPolling();
-          } else {
-            this.stopBiometricPolling();
-          }
+
         }
       });
     });
@@ -1127,29 +1073,21 @@ export class Controls {
       });
     });
 
-    // Biometric lock button
+    // Capture a fresh webcam pose; stale/lost tracking must not calibrate.
     this.settingsDrawer.querySelector('#btn-drawer-bio-lock')?.addEventListener('click', () => {
-      if (this.latestBiometricResult && this.latestBiometricResult.confidence > 0.4) {
-        const distance = this.latestBiometricResult.distanceMeters;
-        this.calibrationManager.setViewingDistance(distance, distance);
-        this.updateDrawerCalibrationReadouts();
-        const feedback = this.settingsDrawer.querySelector('#drawer-bio-feedback') as HTMLElement;
-        const cmVal = (this.latestBiometricResult.distanceMeters * 100).toFixed(0);
-        const inVal = (this.latestBiometricResult.distanceMeters * 39.3701).toFixed(1);
-        if (feedback) {
-          feedback.textContent = `✓ Biometric distance locked: ${cmVal} cm (${inVal} in)`;
-          feedback.style.display = 'block';
-          setTimeout(() => {
-            if (feedback) feedback.style.display = 'none';
-          }, 3000);
-        }
+      const raw = this.callbacks.getCurrentRawPose?.();
+      const bio = this.callbacks.getBiometricDistance?.();
+      const feedback = this.settingsDrawer.querySelector('#drawer-bio-feedback') as HTMLElement;
+      if (this.currentInputMode !== InputMode.Webcam || !raw || !bio || bio.confidence <= 0.4
+        || ![raw.x, raw.y, raw.z, raw.timestamp, bio.distanceMeters].every(Number.isFinite)
+        || raw.z <= 0 || bio.distanceMeters < 0.2
+        || performance.now() / 1000 - raw.timestamp > 0.5) {
+        if (feedback) feedback.textContent = 'Enable webcam tracking and face the camera.';
+        return;
       }
-    });
-
-    // Biometric continuous auto-depth toggle
-    const bioContToggle = this.settingsDrawer.querySelector('#drawer-bio-continuous-toggle') as HTMLInputElement;
-    bioContToggle?.addEventListener('change', (e) => {
-      this.calibrationManager.setContinuousDepthTracking((e.target as HTMLInputElement).checked);
+      this.calibrationManager.calibrateViewer(raw.x, raw.y, raw.z, bio.distanceMeters);
+      this.updateDrawerCalibrationReadouts();
+      if (feedback) feedback.textContent = 'Center and distance calibrated.';
     });
 
     // Distance manual slider

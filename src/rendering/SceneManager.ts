@@ -29,7 +29,7 @@ export class SceneManager {
   private modelViewerLightRotX: number = 10;
   private modelViewerLightRotZ: number = -35;
 
-  constructor(screen: ScreenGeometry) {
+  constructor(screen: ScreenGeometry, maxTextureAnisotropy: number = 1) {
     this.scene = new THREE.Scene();
 
     // Setup Lighting
@@ -58,7 +58,7 @@ export class SceneManager {
     this.scene.add(this.accentLight2);
 
     // Instantiate scene contents
-    this.demoScene = new DemoScene(screen);
+    this.demoScene = new DemoScene(screen, maxTextureAnisotropy);
     this.aquariumScene = new AquariumScene(screen);
     this.wireframeCalibration = new WireframeCalibrationView(screen);
     this.scene.add(this.wireframeCalibration.group);
@@ -100,12 +100,17 @@ export class SceneManager {
       this.accentLight1.intensity = 0;
       this.accentLight2.intensity = 0;
 
-      // Directional sunlight shines straight down from directly above the aquarium center
+      // Overhead light aimed straight down at the tank center.
       const lightDistance = 0.95;
+      const lightTilt = 0;
       this.dirLight.color.setHex(0xffffff);
       this.dirLight.intensity = 2.0;
-      this.dirLight.position.set(0, lightDistance, -0.425);
-      this.dirLight.target.position.set(0, 0, -0.425);
+      this.dirLight.position.set(
+        0,
+        lightDistance * Math.cos(lightTilt),
+        -0.25 - lightDistance * Math.sin(lightTilt)
+      );
+      this.dirLight.target.position.set(0, 0, -0.25);
 
       // Expand shadow frustum so soft shadows cover the entire box
       this.dirLight.shadow.camera.left = -screen.width * 0.6;

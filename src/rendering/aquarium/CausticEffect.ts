@@ -122,6 +122,8 @@ export class CausticEffect {
     });
 
     this.floorCausticsMesh = new THREE.Mesh(floorGeo, this.floorMaterial);
+    // Surface materials now receive world-space projected caustics.
+    this.floorCausticsMesh.visible = false;
     this.floorCausticsMesh.rotation.x = -Math.PI / 2;
     this.floorCausticsMesh.position.set(0, -H / 2 + 0.0012, -D / 2);
     this.group.add(this.floorCausticsMesh);

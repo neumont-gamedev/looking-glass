@@ -42,6 +42,7 @@ export class LookingGlassApp {
   private isRunning: boolean = false;
   private animationFrameId: number | null = null;
   private lastFrameTime: number = performance.now();
+  private nextRenderTime: number = 0;
 
   // Fixed timestep simulation state (guarantees constant 60 FPS physics & kinematics)
   private simAccumulator: number = 0;
@@ -68,7 +69,8 @@ export class LookingGlassApp {
 
     // 2. Initialize Rendering Subsystems
     this.renderer = new Renderer(this.canvas);
-    this.sceneManager = new SceneManager(screenGeometry);
+    this.sceneManager = new SceneManager(screenGeometry,
+      this.renderer.renderer.capabilities.getMaxAnisotropy());
     this.perspectiveController = new PerspectiveController(screenGeometry);
     this.perspectiveController.setReferenceDistance(this.calibrationManager.getData().viewingDistance);
 
@@ -125,6 +127,8 @@ export class LookingGlassApp {
           return degrees;
         },
         onSceneChange: (sceneType) => this.handleSceneChange(sceneType),
+        onDistanceLabelsChange: (visible) => this.sceneManager.demoScene.setDistanceLabelsVisible(visible),
+        onCalibrationGridColorChange: (color) => this.sceneManager.demoScene.setCalibrationGridColor(color),
         onFeedFish: () => this.handleFeedFish(),
         onToggleDebugHud: (visible) => {
           this.sceneManager.demoScene.setAxesVisible(visible);
@@ -438,6 +442,16 @@ export class LookingGlassApp {
     if (!this.isRunning) return;
 
     const now = performance.now();
+    // Pace display work independently of camera frames/inference. Preserve the
+    // fractional deadline on high-refresh monitors; skip backlog after a stall.
+    const renderIntervalMs = 1000 / 60;
+    if (now + 0.5 < this.nextRenderTime) {
+      this.animationFrameId = requestAnimationFrame(this.renderLoop);
+      return;
+    }
+    const deadline = this.nextRenderTime || now;
+    this.nextRenderTime = now - deadline > renderIntervalMs
+      ? now + renderIntervalMs : deadline + renderIntervalMs;
     // Clamp maximum frame interval to prevent physics explosion after tab switch or lag
     const rawDeltaSeconds = Math.min(0.1, (now - this.lastFrameTime) / 1000);
     this.lastFrameTime = now;

@@ -116,7 +116,8 @@ test('prediction remains continuous across the maximum sample gap', () => {
     return predictor.step(1 / 60, time).x;
   }
   close(stepAt(.07 - 1e-7), stepAt(.07 + 1e-7), 1e-6);
-  close(stepAt(10), 0);
+  assert.ok(stepAt(.12) > stepAt(.07), 'prediction continues forward as velocity decays');
+  close(stepAt(10), stepAt(.17), 1e-8);
 });
 
 test('render loop passes wall-clock time to camera after stalls and suspension', () => {
@@ -139,12 +140,42 @@ test('render loop passes wall-clock time to camera after stalls and suspension',
     sceneManager: { update() {}, wireframeCalibration: { getVisible: () => false } },
     controls: { updateDebugHud() {} }, faceTracker: { checkHealth() {} },
     renderer: { render() {} }, debugView: { setCameraActive() {} } };
-  for (now of [8, 16, 200, 60200, 60216]) {
+  for (now of [8, 25, 200, 60200, 60217]) {
     frame.call(appState);
     close(calls.at(-1).time, now / 1000);
     assert.ok(calls.at(-1).dt <= .1);
   }
-  assert.equal(calls.length, 5, 'camera advances on every render, including frames below a physics step');
+  assert.equal(calls.length, 5, 'camera advances on every rendered frame with wall-clock time');
+  calls.length = 0;
+  appState.nextRenderTime = 0;
+  appState.lastFrameTime = 0;
+  for (let tick = 0; tick < 240; tick++) {
+    now = tick * 1000 / 240;
+    frame.call(appState);
+  }
+  assert.equal(calls.length, 60, '240 Hz callbacks produce 60 camera updates/renders');
+});
+
+test('11 Hz tracking advances smoothly between delayed samples without retreating', () => {
+  const predictor = new KinematicPredictor({ enableDeadband: false });
+  let previous = 0;
+  let sample = 0;
+  const delay = .038;
+  let movingFrames = 0;
+  for (let frame = 0; frame < 180; frame++) {
+    const now = frame / 60;
+    if (now >= sample / 11 + delay) {
+      const timestamp = sample / 11;
+      predictor.updateSample({ x: timestamp * .1, y: 0, z: .65 },
+        { x: .1, y: 0, z: 0 }, timestamp);
+      sample++;
+    }
+    const x = predictor.step(1 / 60, now).x;
+    assert.ok(x >= previous - 1e-8, 'no backward pull between samples');
+    if (x > previous + 1e-6) movingFrames++;
+    previous = x;
+  }
+  assert.ok(movingFrames > 160, 'camera advances at rendering cadence, not tracking cadence');
 });
 
 test('final camera bounds contain extreme predicted movement and keep matrices finite', () => {
@@ -334,4 +365,21 @@ test('stationary smoothing holds tremor but releases for deliberate slow and fas
   assert.ok(predictor.getCurrentPosition().x > .004, 'slow motion must escape the stationary radius');
   predictor.updateSample({ x: .02, y: 0, z: .65 }, { x: .2, y: 0, z: 0 }, 4.1);
   assert.ok(predictor.step(1 / 30, 4.1).x > .01);
+});
+
+test('combined calibration saves center and distance atomically and rejects invalid input', () => {
+  const manager = new CalibrationManager();
+  let notifications = 0;
+  manager.subscribe(() => notifications++);
+  manager.calibrateViewer(.03, -.02, .72, .68);
+  const data = manager.getData();
+  assert.deepEqual(data.neutralOrigin, { x: .03, y: -.02, z: .72 });
+  assert.equal(data.viewingDistance, .68);
+  assert.equal(data.continuousDepthTracking, true);
+  assert.equal(data.isCalibrated, true);
+  assert.equal(notifications, 1);
+  manager.calibrateViewer(NaN, 0, .7, .7);
+  manager.calibrateViewer(0, 0, .7, .1);
+  assert.equal(notifications, 1);
+  assert.equal(manager.getData().viewingDistance, .68);
 });

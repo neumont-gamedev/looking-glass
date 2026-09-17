@@ -86,6 +86,18 @@ export class CalibrationManager {
     this.notify();
   }
 
+  /** Save center and camera-estimated resting distance together, with one notification. */
+  public calibrateViewer(x: number, y: number, z: number, distance: number): void {
+    if (![x, y, z, distance].every(Number.isFinite) || z <= 0 || distance < 0.2) return;
+    this.data.neutralOrigin = { x, y, z };
+    this.data.viewingDistance = distance;
+    this.data.continuousDepthTracking = true;
+    this.data.distanceMode = 'biometric';
+    this.data.isCalibrated = true;
+    this.save();
+    this.notify();
+  }
+
   public setDistanceMode(mode: DistanceCalibrationMode): void {
     this.data.distanceMode = mode;
     this.save();

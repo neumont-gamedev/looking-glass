@@ -335,7 +335,7 @@ export class Fish {
     this.speedIntervalRemaining = (this.fastSwimming ? 1.5 : 2.5) + Math.random();
     this.targetSpeedRatio = this.fastSwimming
       ? 0.8 + Math.random() * 0.2
-      : 0.3 + Math.random() * 0.2;
+      : 0.1 + Math.random() * 0.3;
   }
 
   public update(deltaTime: number, timeSeconds: number): void {
@@ -347,7 +347,7 @@ export class Fish {
       this.speedIntervalRemaining -= overshoot;
     }
     // Smooth the speed ceiling; boid steering uses this same speed on the next step.
-    const speedBlend = 1 - Math.exp(-deltaTime / 0.4);
+    const speedBlend = 1 - Math.exp(-deltaTime / 0.5);
     this.maxSpeed += (this.baseMaxSpeed * this.targetSpeedRatio - this.maxSpeed) * speedBlend;
     // Limit vertical component of physical velocity so fish swim predominantly horizontally
     const maxVerticalSpeed = this.maxSpeed * Math.sin(Fish.MAX_PITCH_RAD);
